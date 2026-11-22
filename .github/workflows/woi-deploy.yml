@@ -1,0 +1,92 @@
+# WOI Equity: test, build and publish the website for Hostinger.
+#
+# Runs when anything in woi-equity/ changes on main (including a JSON file
+# uploaded to woi-equity/inbox). It:
+#   1. publishes any inbox JSON into the bundled archive (rejects bad files)
+#   2. runs all tests and builds the site
+#   3. pushes the finished site to the "hostinger-deploy" branch
+# Hostinger pulls that branch into public_html (see START_HERE.md, step 5).
+
+name: WOI Equity deploy
+
+on:
+  push:
+    branches: [main]
+    paths: ["woi-equity/**", ".github/workflows/woi-deploy.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: woi-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: woi-equity
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: woi-equity/package-lock.json
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+
+      - name: Install
+        run: npm ci
+
+      - name: Publish uploaded JSON from the inbox
+        id: inbox
+        run: |
+          if ls inbox/*.json >/dev/null 2>&1; then
+            set +e
+            npm run -s ingest:inbox
+            echo "status=$?" >> "$GITHUB_OUTPUT"
+            set -e
+            git config user.name "woi-equity-bot"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A inbox public/data
+            git diff --cached --quiet || { git commit -q -m "Publish uploaded snapshot(s)"; git push; }
+          else
+            echo "status=0" >> "$GITHUB_OUTPUT"
+            echo "Inbox empty."
+          fi
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Push the built site to the hostinger-deploy branch
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$REPO_URL" hostinger-deploy >/dev/null; then
+            git clone -q --depth 1 --branch hostinger-deploy "$REPO_URL" /tmp/site
+          else
+            git init -q /tmp/site && git -C /tmp/site checkout -q -b hostinger-deploy && git -C /tmp/site remote add origin "$REPO_URL"
+          fi
+          rsync -a --delete --exclude .git woi-equity/dist/ /tmp/site/
+          cd /tmp/site
+          git config user.name "woi-equity-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Site unchanged."; else git commit -q -m "Site build ${GITHUB_SHA::7}" && git push -q origin hostinger-deploy; fi
+
+      - name: Fail if an uploaded file was rejected
+        if: steps.inbox.outputs.status != '0'
+        run: |
+          echo "One or more uploaded files were rejected. See woi-equity/inbox/rejected/*.reason.txt"
+          exit 1

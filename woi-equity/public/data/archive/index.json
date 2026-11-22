@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "updatedAtUtc": null,
+  "snapshots": [
+    {
+      "id": "2026-11-20",
+      "path": "archive/2026-11-20.json",
+      "equityTradingDate": "2026-11-20",
+      "equitySession": "regular_close",
+      "reportDate": "2026-11-22",
+      "quality": "verified_with_missing_indicators",
+      "archivedAtUtc": null,
+      "sha256": null
+    }
+  ]
+}

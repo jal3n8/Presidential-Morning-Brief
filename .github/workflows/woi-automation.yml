@@ -1,0 +1,58 @@
+# WOI Equity: scheduled market updates (Phase 2).
+#
+# Wakes every 30 minutes on weekdays during US market hours. The job itself
+# checks the NYSE calendar and only acts after 09:40 and 16:15 New York time
+# on trading days (13:15 on early-close days), once each.
+#
+# Stays OFF until you set the repository variable WOI_AUTOMATION_ENABLED to
+# "true" and add the secrets listed in AUTOMATION_PLAN.md.
+
+name: WOI Equity market updates
+
+on:
+  schedule:
+    - cron: "10,40 13-22 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Force a job (opening_snapshot or closing_snapshot)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: woi-automation
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: vars.WOI_AUTOMATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: woi-equity
+    env:
+      WOI_SITE_URL: ${{ vars.WOI_SITE_URL }}
+      WOI_INGEST_TOKEN: ${{ secrets.WOI_INGEST_TOKEN }}
+      MARKET_DATA_PROVIDER: ${{ vars.MARKET_DATA_PROVIDER }}
+      MARKET_DATA_API_KEY: ${{ secrets.MARKET_DATA_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: woi-equity/package-lock.json
+      - run: npm ci
+      - name: Run the job that is due
+        run: |
+          if [ -n "${{ inputs.job }}" ]; then
+            npm run -s automation:run -- --job "${{ inputs.job }}" --force
+          else
+            npm run -s automation:run
+          fi

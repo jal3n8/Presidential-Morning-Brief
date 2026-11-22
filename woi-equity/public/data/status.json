@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "automationEnabled": false,
+  "configuredConnections": {
+    "ingestEndpoint": false,
+    "gemini": false,
+    "marketData": false,
+    "secEdgar": false,
+    "googleDrive": false,
+    "googleSheets": false
+  },
+  "lastRun": null,
+  "lastSuccessUtc": null,
+  "consecutiveFailures": 0,
+  "recentRuns": []
+}

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tmp
+.DS_Store
+# Real server secrets never go in git
+woi-config.php

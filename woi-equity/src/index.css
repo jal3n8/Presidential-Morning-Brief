@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --ink: #101010;
+  --ivory: #ece6d8;
+}
+
+html, body {
+  background: var(--ink);
+  color: var(--ivory);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@layer components {
+  .label {
+    @apply font-mono text-[10px] uppercase tracking-label text-ivory-500;
+  }
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .link {
+    @apply text-ivory-100 underline decoration-ink-600 underline-offset-[3px] hover:decoration-brass-400;
+  }
+  .input {
+    @apply w-full border border-ink-700 bg-ink-950 px-3 py-2 text-[13px] text-ivory-100 placeholder:text-ivory-700 focus:border-brass-500 focus:outline-none;
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 border border-ink-600 px-3 py-1.5 text-xs text-ivory-100 hover:border-brass-500 hover:text-brass-300 disabled:opacity-40;
+  }
+  .tbl th {
+    @apply whitespace-nowrap border-b border-ink-700 px-3 py-2 text-left font-mono text-[10px] font-normal uppercase tracking-label text-ivory-500;
+  }
+  .tbl td {
+    @apply border-b border-ink-800 px-3 py-2 align-top;
+  }
+}
+
+::selection { background: #6e5f40; color: #f4efe3; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { scrollbar-width: none; }
+:focus-visible { outline: 1px solid #c2a874; outline-offset: 2px; }
