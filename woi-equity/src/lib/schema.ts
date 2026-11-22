@@ -3,229 +3,201 @@ import { z } from "zod";
 /**
  * Data contract for WOI Equity snapshots (schemaVersion 2.x).
  *
- * Shared by the dashboard (validates what it fetches) and the automation
- * pipeline (validates what it is about to publish). Nulls are first-class:
- * every value that a source may fail to supply is `.nullable()`, and nothing
- * in the app replaces a null with an estimate.
+ * STRICT: unknown keys are rejected everywhere, every string and list has a
+ * size limit, and every link must be http(s). The same schema is exported to
+ * JSON Schema (scripts/export-schema.ts) and enforced again on the server
+ * (public/api/_lib/validate.php), so the browser is never the only check.
  *
- * Unknown keys are kept (`passthrough`) so a newer pipeline can add fields
- * without the dashboard discarding them.
+ * Nulls are first-class: a value a source could not supply is null, and
+ * nothing in the app replaces it with an estimate.
  */
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
-const num = z.number().finite();
+const isoDateTime = z.string().max(40).regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})?)?$/, "expected an ISO date or date-time");
+/** Only http(s) links: blocks javascript:, data: and other dangerous schemes. */
+export const safeUrl = z.string().max(2048).regex(/^https?:\/\/[^\s"'<>\\]+$/, "expected an http(s) URL");
+const text = (max: number) => z.string().max(max);
+/** Keys used to refer to sources; must start with a letter (rules out __proto__). */
+const refKey = z.string().regex(/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/, "invalid source key");
+const num = z.number();
 const nNum = num.nullable();
-const nStr = z.string().nullable();
+const nStr = (max = 500) => text(max).nullable();
 const nBool = z.boolean().nullable();
+const status = text(200).regex(/^[A-Za-z0-9_ .:/()-]*$/, "status codes use letters, digits and _");
 
-export const SourceSchema = z
-  .object({
-    url: z.string().url(),
-    description: z.string(),
-    retrievedDate: isoDate,
-    /** Optional richer metadata the research pipeline may add. */
-    category: z
-      .enum(["market_data", "sec_filing", "earnings", "company_announcement", "market_news", "calendar", "reference"])
-      .optional(),
-    title: z.string().optional(),
-    publishedDate: isoDate.nullable().optional(),
-    publisher: z.string().optional(),
-  })
-  .passthrough();
+export const SOURCE_CATEGORIES = ["market_data", "sec_filing", "earnings", "company_announcement", "market_news", "calendar", "reference"] as const;
+export const RESEARCH_TYPES = ["sec_filing", "earnings", "company_announcement", "market_news", "launch", "other"] as const;
 
-export const ResearchItemSchema = z
-  .object({
-    id: z.string().optional(),
-    title: z.string(),
-    type: z
-      .enum(["sec_filing", "earnings", "company_announcement", "market_news", "launch", "other"])
-      .default("other"),
-    date: isoDate.nullable().default(null),
-    summary: nStr.default(null),
-    /** Key into snapshot.sources, preferred. */
-    sourceRef: nStr.default(null),
-    /** Direct URL when there is no sources entry. */
-    url: z.string().url().nullable().default(null),
-    /** How the item was checked, e.g. "sec_edgar_api", "quoted_text_found_on_primary_source". */
-    verificationMethod: nStr.optional(),
-    /** For filings: form type such as 10-Q, 8-K. */
-    form: z.string().optional(),
-    /** When the source published it (ISO date or date-time). */
-    publishedAt: z.string().nullable().optional(),
-    /** When the event itself happens or happened (ISO date or date-time). */
-    effectiveAt: z.string().nullable().optional(),
-    verificationStatus: z.enum(["verified", "unverified", "contradicted"]).optional(),
-  })
-  .passthrough();
+export const SourceSchema = z.strictObject({
+  url: safeUrl,
+  description: text(500),
+  retrievedDate: isoDate,
+  category: z.enum(SOURCE_CATEGORIES).optional(),
+  title: text(300).optional(),
+  publishedDate: isoDate.nullable().optional(),
+  publisher: text(200).optional(),
+});
 
-const RegimeInstrumentSchema = z
-  .object({
-    symbol: z.string(),
-    closeUsd: nNum,
+export const ResearchItemSchema = z.strictObject({
+  id: text(80).optional(),
+  title: text(300),
+  type: z.enum(RESEARCH_TYPES).default("other"),
+  date: isoDate.nullable().default(null),
+  summary: nStr(2000).default(null),
+  sourceRef: refKey.nullable().default(null),
+  url: safeUrl.nullable().default(null),
+  verificationMethod: text(100).nullable().optional(),
+  form: text(40).optional(),
+  publishedAt: isoDateTime.nullable().optional(),
+  effectiveAt: isoDateTime.nullable().optional(),
+  verificationStatus: z.enum(["verified", "unverified", "contradicted"]).optional(),
+  /** Exact sentence quoted from the source (automation evidence). Display only. */
+  quote: text(600).optional(),
+});
+
+const RegimeInstrumentSchema = z.strictObject({
+  symbol: text(16),
+  closeUsd: nNum,
+  sma200Usd: nNum,
+  pctVsSma200: nNum,
+  sideOfSma200: z.enum(["above", "below", "at"]).nullable(),
+  dataSources: z.array(refKey).max(20),
+});
+
+const WatchItemSchema = z.strictObject({
+  symbol: text(16).regex(/^[A-Z0-9.^-]{1,16}$/, "ticker symbol"),
+  company: text(200),
+  currency: text(8),
+  regularSessionClose: nNum,
+  closeDate: isoDate.nullable(),
+  oneDayChangePct: nNum,
+  marketDataSource: refKey.nullable(),
+  technicalIndicators: z.strictObject({
+    sma50Usd: nNum,
     sma200Usd: nNum,
-    pctVsSma200: nNum,
-    sideOfSma200: z.enum(["above", "below", "at"]).nullable(),
-    dataSources: z.array(z.string()),
-  })
-  .passthrough();
+    rsi14: nNum,
+    sma200Availability: status.nullable().optional(),
+    sma200Note: text(1000).optional(),
+    method: text(500).optional(),
+  }),
+  research: z.strictObject({
+    status: status,
+    focus: z.array(text(200)).max(20),
+    verifiedCatalysts: z.array(ResearchItemSchema).max(200),
+    verifiedFilings: z.array(ResearchItemSchema).max(200),
+    unverifiedClaims: z.array(ResearchItemSchema).max(200),
+    summary: nStr(4000),
+    asOf: isoDateTime.nullable(),
+    /** Bull/bear cases. Always analysis, never data. */
+    scenarios: z.strictObject({ bull: nStr(4000), bear: nStr(4000), author: text(200), asOf: isoDateTime.nullable() }).nullable().optional(),
+  }),
+  listingDate: isoDate.optional(),
+  intraday: z.strictObject({ price: num, asOfUtc: isoDateTime, source: refKey }).nullable().optional(),
+});
 
-const WatchItemSchema = z
-  .object({
-    symbol: z.string(),
-    company: z.string(),
-    currency: z.string(),
-    regularSessionClose: nNum,
-    closeDate: isoDate.nullable(),
-    oneDayChangePct: nNum,
-    marketDataSource: nStr,
-    technicalIndicators: z
-      .object({
-        sma50Usd: nNum,
-        sma200Usd: nNum,
-        rsi14: nNum,
-        sma200Availability: nStr.optional(),
-        sma200Note: z.string().optional(),
-        method: z.string().optional(),
-      })
-      .passthrough(),
-    research: z
-      .object({
-        status: z.string(),
-        focus: z.array(z.string()),
-        verifiedCatalysts: z.array(ResearchItemSchema),
-        verifiedFilings: z.array(ResearchItemSchema),
-        unverifiedClaims: z.array(ResearchItemSchema),
-        summary: nStr,
-        asOf: nStr,
-        /** Bull/bear cases. Always analysis, never data. */
-        scenarios: z
-          .object({ bull: nStr, bear: nStr, author: z.string(), asOf: nStr })
-          .passthrough()
-          .nullable()
-          .optional(),
-      })
-      .passthrough(),
-    listingDate: isoDate.optional(),
-    /** Written by the opening job: a dated, sourced intraday price. */
-    intraday: z
-      .object({ price: num, asOfUtc: z.string(), source: z.string() })
-      .passthrough()
-      .nullable()
-      .optional(),
-  })
-  .passthrough();
-
-export const SnapshotSchema = z
-  .object({
-    schemaVersion: z.string().regex(/^2\.\d+\.\d+$/, "dashboard supports schemaVersion 2.x"),
-    project: z.string(),
-    snapshot: z
-      .object({
-        reportDate: isoDate,
-        equityTradingDate: isoDate,
-        equitySession: z.enum(["regular_close", "opening", "intraday", "pre_market"]).or(z.string()),
-        equityMarketTimezone: z.string(),
-        displayTimezone: z.string(),
-        collectionMethod: z.string(),
-        isLive: z.boolean(),
-        quality: z.string(),
-        lastSuccessfulAutomatedRunUtc: nStr,
-      })
-      .passthrough(),
-    marketRegime: z
-      .object({
-        name: z.string(),
-        rule: z.string(),
-        instruments: z.array(RegimeInstrumentSchema),
-        allBelow200DaySma: nBool,
-        label: nStr,
-        labelType: z.string(),
-      })
-      .passthrough(),
-    washout: z
-      .object({
-        sp500: z
-          .object({
-            symbol: z.string(),
-            close: nNum,
-            sma200: nNum,
-            pctVsSma200: nNum,
-            rsi14: nNum,
-            previousHighestDailyClose: nNum,
-            pctDrawdownFromClosingPeak: nNum,
-            oneYearAgoClose: nNum,
-            oneYearComparisonDate: isoDate.nullable(),
-            yearOverYearPriceReturnPct: nNum,
-            dataSources: z.array(z.string()),
-          })
-          .passthrough(),
-        vixClose: nNum,
-        vixSource: nStr,
-        fiveDaySigma: nNum,
-        fiveDaySigmaStatus: nStr.optional(),
-        vixCluster: z.union([z.boolean(), z.number(), z.string()]).nullable(),
-        vixRealizedStabilizing: nBool,
-        score: nNum,
-        scoreStatus: nStr.optional(),
-        interpretation: nStr.optional(),
-      })
-      .passthrough(),
-    club3030: z
-      .object({
-        triggered: nBool,
-        status: z.string(),
-        isFridayClose: nBool,
-        sp500YearOverYearPositive: nBool,
-        requiredRuleDefinition: z.union([z.string(), z.record(z.unknown())]).nullable(),
-        note: nStr.optional(),
-      })
-      .passthrough(),
-    macroAndConfirmation: z
-      .object({
-        nominalUsTreasury2YearYieldPct: nNum,
-        nominalYieldSource: nStr,
-        real2YearYieldThreeMonthChangeBps: nNum,
-        real2YearYieldTrend: nStr,
-        realYieldStatus: nStr.optional(),
-        nasdaqBreadth: z
-          .object({
-            new52WeekHighs: nNum,
-            new52WeekLows: nNum,
-            newHighMinusNewLow: nNum,
-            source: nStr,
-            confidence: nStr.optional(),
-            zweigBreadthThrustConfirmed: nBool,
-          })
-          .passthrough(),
-        bitcoin: z
-          .object({
-            symbol: z.string(),
-            utcCandleDate: isoDate.nullable(),
-            dailyCandleCloseUsd: nNum,
-            sma100Usd: nNum,
-            sma200Usd: nNum,
-            vsSma100: z.union([z.number(), z.string()]).nullable(),
-            vsSma200: z.union([z.number(), z.string()]).nullable(),
-            smaStatus: nStr.optional(),
-            source: nStr,
-            note: z.string().optional(),
-          })
-          .passthrough(),
-      })
-      .passthrough(),
-    watchlist: z.array(WatchItemSchema).min(1),
-    automationPlan: z.record(z.unknown()).optional(),
-    validation: z
-      .object({
-        noFabricatedNulls: z.boolean(),
-        neverOverwriteValidSnapshotWithFailedRun: z.boolean(),
-        blockedFromAutomatedTradeSignals: z.array(z.string()),
-        warnings: z.array(z.string()),
-      })
-      .passthrough(),
-    sources: z.record(SourceSchema),
-  })
-  .passthrough();
+export const SnapshotSchema = z.strictObject({
+  schemaVersion: z.string().regex(/^2\.\d{1,3}\.\d{1,3}$/, "dashboard supports schemaVersion 2.x"),
+  project: text(200),
+  snapshot: z.strictObject({
+    reportDate: isoDate,
+    equityTradingDate: isoDate,
+    equitySession: z.enum(["regular_close", "opening", "intraday", "pre_market"]),
+    equityMarketTimezone: text(64),
+    displayTimezone: text(64).regex(/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/, "IANA time zone"),
+    collectionMethod: status,
+    isLive: z.boolean(),
+    quality: status,
+    lastSuccessfulAutomatedRunUtc: isoDateTime.nullable(),
+    snapshotId: z.string().regex(/^[A-Za-z0-9_.-]{1,80}$/).optional(),
+    openingSessionDate: isoDate.optional(),
+  }),
+  marketRegime: z.strictObject({
+    name: text(100),
+    rule: text(1000),
+    instruments: z.array(RegimeInstrumentSchema).max(10),
+    allBelow200DaySma: nBool,
+    label: z.enum(["DEFENSIVE", "NOT DEFENSIVE"]).nullable(),
+    labelType: status,
+  }),
+  washout: z.strictObject({
+    sp500: z.strictObject({
+      symbol: text(16),
+      close: nNum,
+      sma200: nNum,
+      pctVsSma200: nNum,
+      rsi14: nNum,
+      previousHighestDailyClose: nNum,
+      pctDrawdownFromClosingPeak: nNum,
+      oneYearAgoClose: nNum,
+      oneYearComparisonDate: isoDate.nullable(),
+      yearOverYearPriceReturnPct: nNum,
+      dataSources: z.array(refKey).max(20),
+      peakLookbackStart: isoDate.nullable().optional(),
+    }),
+    vixClose: nNum,
+    vixSource: refKey.nullable(),
+    fiveDaySigma: nNum,
+    fiveDaySigmaStatus: status.nullable().optional(),
+    vixCluster: z.union([z.boolean(), z.number(), text(100)]).nullable(),
+    vixRealizedStabilizing: nBool,
+    score: nNum,
+    scoreStatus: status.nullable().optional(),
+    interpretation: nStr(1000).optional(),
+  }),
+  club3030: z.strictObject({
+    triggered: nBool,
+    status: status,
+    isFridayClose: nBool,
+    sp500YearOverYearPositive: nBool,
+    requiredRuleDefinition: text(4000).nullable(),
+    note: nStr(1000).optional(),
+  }),
+  macroAndConfirmation: z.strictObject({
+    nominalUsTreasury2YearYieldPct: nNum,
+    nominalYieldSource: refKey.nullable(),
+    real2YearYieldThreeMonthChangeBps: nNum,
+    real2YearYieldTrend: z.enum(["rising", "falling", "flat"]).nullable(),
+    realYieldStatus: status.nullable().optional(),
+    nasdaqBreadth: z.strictObject({
+      new52WeekHighs: nNum,
+      new52WeekLows: nNum,
+      newHighMinusNewLow: nNum,
+      source: refKey.nullable(),
+      confidence: status.nullable().optional(),
+      zweigBreadthThrustConfirmed: nBool,
+    }),
+    bitcoin: z.strictObject({
+      symbol: text(16),
+      utcCandleDate: isoDate.nullable(),
+      dailyCandleCloseUsd: nNum,
+      sma100Usd: nNum,
+      sma200Usd: nNum,
+      vsSma100: nNum,
+      vsSma200: nNum,
+      smaStatus: status.nullable().optional(),
+      source: refKey.nullable(),
+      note: text(1000).optional(),
+    }),
+  }),
+  watchlist: z.array(WatchItemSchema).min(1).max(50),
+  automationPlan: z.strictObject({
+    status: status,
+    enabled: z.boolean(),
+    equitiesCalendar: status,
+    proposedJobs: z.array(z.strictObject({ name: status, time: z.string().regex(/^\d{2}:\d{2}$/), timezone: text(64), days: status, purpose: text(300) })).max(10),
+    ingestion: status,
+    storage: text(500),
+    dashboardRefresh: text(500),
+    credentials: status,
+  }).optional(),
+  validation: z.strictObject({
+    noFabricatedNulls: z.boolean(),
+    neverOverwriteValidSnapshotWithFailedRun: z.boolean(),
+    blockedFromAutomatedTradeSignals: z.array(z.string().regex(/^[A-Za-z0-9.]{1,100}$/)).max(50),
+    warnings: z.array(text(1000)).max(100),
+  }),
+  sources: z.record(refKey, SourceSchema),
+});
 
 export type Snapshot = z.infer<typeof SnapshotSchema>;
 export type WatchItem = Snapshot["watchlist"][number];
@@ -233,43 +205,72 @@ export type RegimeInstrument = Snapshot["marketRegime"]["instruments"][number];
 export type Source = z.infer<typeof SourceSchema>;
 export type ResearchItem = z.infer<typeof ResearchItemSchema>;
 
-/** Archive manifest: public/data/archive/index.json */
-export const ArchiveEntrySchema = z.object({
-  id: z.string(),
-  path: z.string(),
+/** Archive manifest */
+export const ArchiveEntrySchema = z.strictObject({
+  id: z.string().regex(/^[A-Za-z0-9_.:-]{1,90}$/),
+  path: z.string().regex(/^archive\/[A-Za-z0-9_.-]{1,90}\.json$/),
   equityTradingDate: isoDate,
-  equitySession: z.string(),
+  equitySession: text(40),
   reportDate: isoDate,
-  quality: z.string(),
-  archivedAtUtc: nStr,
-  sha256: nStr.optional(),
+  quality: text(200),
+  archivedAtUtc: isoDateTime.nullable(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
 });
-export const ArchiveManifestSchema = z.object({
+export const ArchiveManifestSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  updatedAtUtc: nStr,
-  snapshots: z.array(ArchiveEntrySchema),
+  updatedAtUtc: isoDateTime.nullable(),
+  snapshots: z.array(ArchiveEntrySchema).max(10000),
 });
 export type ArchiveEntry = z.infer<typeof ArchiveEntrySchema>;
 export type ArchiveManifest = z.infer<typeof ArchiveManifestSchema>;
 
-/** Pipeline run status: public/data/status.json */
-export const RunRecordSchema = z.object({
-  job: z.string(),
-  startedAtUtc: z.string(),
-  finishedAtUtc: nStr,
+/** Pipeline/update status */
+export const RunRecordSchema = z.strictObject({
+  job: text(40),
+  startedAtUtc: isoDateTime,
+  finishedAtUtc: isoDateTime.nullable(),
   result: z.enum(["success", "failed", "skipped"]),
-  reason: nStr,
-  snapshotId: nStr,
-  steps: z.array(z.object({ name: z.string(), ok: z.boolean(), detail: nStr })).default([]),
+  reason: nStr(1000),
+  snapshotId: nStr(90),
+  actor: text(40).optional(),
+  steps: z.array(z.strictObject({ name: text(80), ok: z.boolean(), detail: nStr(500) })).max(20).default([]),
 });
-export const PipelineStatusSchema = z.object({
+export const PipelineStatusSchema = z.strictObject({
   schemaVersion: z.literal(1),
   automationEnabled: z.boolean(),
-  configuredConnections: z.record(z.boolean()),
+  configuredConnections: z.record(z.string().regex(/^[A-Za-z]{2,32}$/), z.boolean()),
   lastRun: RunRecordSchema.nullable(),
-  lastSuccessUtc: nStr,
+  lastSuccessUtc: isoDateTime.nullable(),
   consecutiveFailures: z.number().int().nonnegative(),
-  recentRuns: z.array(RunRecordSchema),
+  recentRuns: z.array(RunRecordSchema).max(200),
 });
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 export type PipelineStatus = z.infer<typeof PipelineStatusSchema>;
+
+/**
+ * Public projection: the only market data visible without signing in
+ * (homepage). Produced by the server (api/public.php) from the latest snapshot.
+ */
+export const PublicSnapshotSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  snapshot: z.strictObject({
+    equityTradingDate: isoDate,
+    equitySession: text(40),
+    reportDate: isoDate,
+    isLive: z.boolean(),
+    lastSuccessfulAutomatedRunUtc: isoDateTime.nullable(),
+    collectionMethod: status,
+  }),
+  sp500Close: nNum,
+  vixClose: nNum,
+  regimeInstruments: z.array(z.strictObject({ symbol: text(16), closeUsd: nNum, sma200Usd: nNum })).max(10),
+  watchlist: z.array(z.strictObject({
+    symbol: text(16), company: text(200), regularSessionClose: nNum, oneDayChangePct: nNum, closeDate: isoDate.nullable(), focus: z.array(text(200)).max(20),
+  })).max(50),
+  sources: z.array(z.strictObject({ key: refKey, url: safeUrl, description: text(500), retrievedDate: isoDate })).max(100),
+});
+export type PublicSnapshot = z.infer<typeof PublicSnapshotSchema>;
+
+/** What the server says about the signed-in caller (api/me.php). */
+export const MeSchema = z.strictObject({ role: z.enum(["public", "subscriber", "admin"]), subject: nStr(200) });
+export type Role = z.infer<typeof MeSchema>["role"];

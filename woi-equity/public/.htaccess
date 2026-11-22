@@ -1,32 +1,49 @@
-# WOI Equity, Hostinger (LiteSpeed/Apache) settings.
+# WOI Equity, Hostinger (LiteSpeed/Apache) security settings.
+# __AUTH_ORIGIN__ is replaced at build time with the sign-in provider origin.
 
 Options -Indexes
-DirectoryIndex index.html index.php
+DirectoryIndex index.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  # /dashboard -> /dashboard/
+
+  # 1. HTTPS only (turn on Hostinger's free SSL before deploying this).
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+  # 2. /dashboard -> /dashboard/
   RewriteRule ^dashboard$ /dashboard/ [R=301,L]
-  # Never serve dotfiles (except Let's Encrypt checks)
+
+  # 3. Never serve dotfiles (except Let's Encrypt), server library, packages or config-like files.
   RewriteRule (^|/)\.(?!well-known/) - [F,L]
-  # Pass the Authorization header through to PHP (needed by api/ingest.php)
+  RewriteRule ^api/_lib(/|$) - [F,L]
+  RewriteRule (^|/)(composer\.(json|lock)|package(-lock)?\.json|woi-config[^/]*|.*\.(log|lock|md|sql|bak|env|ini|sh))$ - [F,L]
+
+  # 4. Pass the Authorization header through to PHP.
   RewriteCond %{HTTP:Authorization} .
   RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 </IfModule>
 
 <IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
   Header always set X-Content-Type-Options "nosniff"
-  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set X-Frame-Options "DENY"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
-  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  Header always set Cross-Origin-Opener-Policy "same-origin"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' __AUTH_ORIGIN__; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' __AUTH_ORIGIN__; object-src 'none'; upgrade-insecure-requests"
+  Header always unset X-Powered-By
 
-  # Hashed build files never change: cache for a year.
   <FilesMatch "^.+-[A-Za-z0-9_-]{8,}\.(js|css)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
-  # Pages and data must always be fresh.
-  <FilesMatch "\.(html|json)$">
+  <FilesMatch "\.html$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
+</IfModule>
+
+<IfModule mod_php.c>
+  php_flag display_errors off
+  php_flag expose_php off
 </IfModule>

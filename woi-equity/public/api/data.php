@@ -3,47 +3,35 @@
  * GET /api/data.php?file=latest|manifest|status
  * GET /api/data.php?file=archive&id=<snapshot id>
  *
- * Serves the live data store to the dashboard. Read-only. Answers 404 when
- * nothing has been ingested yet; the dashboard then uses the bundled files.
- *
- * Member-only content later: add a session check where marked below. The
- * browser already sends its session cookie with these requests.
+ * Full research data. SUBSCRIBER or ADMIN only, verified on every request.
  */
-
 declare(strict_types=1);
-require __DIR__ . '/_lib.php';
+require __DIR__ . '/_lib/bootstrap.php';
 
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
-    header('Allow: GET');
-    woi_json(405, ['error' => 'Method not allowed']);
-    exit;
-}
+woi_require_https();
+woi_require_method('GET');
+woi_rate_limit('data', 240, 60);
+woi_require_role('subscriber');
 
-// AUTH HOOK: when subscriber content exists, require a signed-in member here, e.g.
-// if (!woi_member_signed_in()) { woi_json(401, ['error' => 'Sign in required']); exit; }
-
-$file = $_GET['file'] ?? '';
-$path = match ($file) {
-    'latest' => woi_storage('latest.json'),
-    'manifest' => woi_storage('archive/index.json'),
-    'status' => woi_storage('status.json'),
-    'archive' => (function () {
+switch ($_GET['file'] ?? '') {
+    case 'latest':
+        [$path, $origin] = woi_latest_file();
+        if (!is_file($path)) throw new WoiHttpError(404, 'Not published yet');
+        woi_send_file($path, ['X-WOI-Origin' => $origin]);
+        break;
+    case 'manifest':
+        woi_json(200, woi_manifest());
+        break;
+    case 'status':
+        woi_json(200, woi_status());
+        break;
+    case 'archive':
         $id = (string)($_GET['id'] ?? '');
-        return woi_valid_id($id) ? woi_storage("archive/$id.json") : null;
-    })(),
-    default => null,
-};
-
-if ($path === null) {
-    woi_json(400, ['error' => 'Unknown file']);
-    exit;
+        if (!woi_valid_id($id)) throw new WoiHttpError(400, 'Invalid id');
+        $f = woi_archive_file($id);
+        if ($f === null) throw new WoiHttpError(404, 'Not found');
+        woi_send_file($f);
+        break;
+    default:
+        throw new WoiHttpError(400, 'Unknown file');
 }
-if (!is_file($path)) {
-    woi_json(404, ['error' => 'Not published yet']);
-    exit;
-}
-
-header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store');
-header('X-Content-Type-Options: nosniff');
-readfile($path);

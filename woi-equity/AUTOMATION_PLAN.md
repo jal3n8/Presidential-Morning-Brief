@@ -13,14 +13,17 @@ GitHub Actions (scheduled, free)
   │                         on the company's own site or sec.gov          built
   ├─ build snapshot ....... indicators computed from real series           built and tested
   ├─ full validation ...... same rules as the dashboard                    built and tested
-  └─ POST /api/ingest.php . Bearer token (WOI_INGEST_TOKEN)               built and tested
+  └─ POST /api/ingest.php . machine token (WOI_INGEST_TOKEN; server keeps
+                            only its SHA-256), strict schema, audited    built and tested
+     (reads current state from GET /api/automation.php with the same token)
          │
          ▼
 Hostinger (outside public_html):  woi-storage/
   archive/<id>.json (written first) → archive/index.json → latest.json (moved last, forward only)
          │
          ▼
-Dashboard reads /api/data.php every 5 min (or Refresh) and shows the newest valid snapshot.
+Signed-in subscribers' dashboards read /api/data.php (token checked on every
+request) every 5 min, or on Refresh, and show the newest valid snapshot.
 ```
 
 Google Drive and Sheets are an optional **copy**, not the source the website reads. A browser must never read a private Drive file directly. See step 5.
@@ -57,7 +60,7 @@ The SMA method (adjusted or unadjusted closes) is recorded in every snapshot und
 
 ## 4. Gemini research
 
-- **Key:** create one at aistudio.google.com, then add it as the GitHub secret `GEMINI_API_KEY`. Check current free-tier limits and paid pricing at ai.google.dev/pricing; I have not verified them.
+- **Key:** create one in a dedicated Google Cloud project. In **Credentials**, restrict it to the **Generative Language API** only, and set a budget alert. Add it as the GitHub secret `GEMINI_API_KEY`; it never goes on the website. Check current free-tier limits and paid pricing at ai.google.dev/pricing; I have not verified them.
 - **Model:** set the repository variable `GEMINI_MODEL` to the model you want. If it is not set, the code uses `gemini-2.5-pro`.
 - **Status of AI items:** everything Gemini returns starts as **unverified**. An item becomes **verified** only if two things hold:
   - its URL is on sec.gov or the company's own site
@@ -69,26 +72,19 @@ The SMA method (adjusted or unadjusted closes) is recorded in every snapshot und
 
 Recommended order: get the website updating first, then add a Drive or Sheets copy if you want it.
 
-- The GitHub archive (`public/data/archive`) and the server archive (`woi-storage/archive`) already keep every snapshot.
+- The server archive (`woi-storage/archive`, outside the public web folder) already keeps every snapshot and every superseded version.
 - **Google Sheets:** a Google Cloud service account can append a row per run to a Sheet you share with it. Needs a Google Cloud project; free at this volume.
 - **Google Drive files:** your account is a personal Gmail account, and service accounts cannot store files in a personal "My Drive". Uploading JSON copies to Drive therefore needs an OAuth refresh token from your own Google account. Setting that up is fiddly; ask for it when you want it.
 
-Neither is built yet. Both run in the GitHub job, never in the browser.
+Neither is built yet. Both run in the GitHub job, never in the browser. Use the narrowest permission: `drive.file` (only files the job created) or a single Sheet shared with a service account. Never full-Drive access.
 
-## 6. Authentication for paid content (decide before launch)
+## 6. Authentication (implemented)
 
-| Option | Effort | Cost | Notes |
-|---|---|---|---|
-| hPanel "Password Protect Directories" | 5 minutes | Included | One shared password. Testing only. |
-| PHP sessions + MySQL on Hostinger | Medium | Included | Accounts live on your server; we must build password reset, rate limiting and payment checks. |
-| Hosted sign-in (Clerk, Auth0, Supabase Auth, Firebase Auth) | Low to medium | Free tiers exist; check current pricing | Least security code to own. `api/data.php` verifies the user's token on the server. |
-| Payments (Stripe) | Medium | Per-transaction fees | Pairs with any of the above. |
-
-Whichever you choose, the check goes in `public/api/data.php` (marked `AUTH HOOK`). The browser never holds a secret.
+Sign-in uses Auth0 with Public, Subscriber and Admin roles, checked by the server on every request. Setup is in START_HERE.md, steps 4 and 5; details are in SECURITY.md. Still to do before charging anyone: a payment integration (for example Stripe) that grants and removes the Subscriber role, plus its own security review.
 
 ## 7. Fail-safes already in place
 
-- **Validation before publishing:** a file that fails validation is never published (GitHub inbox and server endpoint both check).
+- **Validation before publishing:** a file that fails validation is never published. The browser, the automation job and the server all check it against the same strict schema.
 - **Write order:** the archive is written first, the index second, and `latest.json` last, using atomic replace (a temporary file, then rename).
 - **Latest only moves forward:** an older session is archived but never becomes "latest".
 - **Duplicates:** the same snapshot twice is a no-op. A different file with the same id is refused unless you ask to replace it, and the old file is kept in `archive/revisions/`.
@@ -103,7 +99,7 @@ Whichever you choose, the check goes in `public/api/data.php` (marked `AUTH HOOK
 
 | Name | Where | Needed for |
 |---|---|---|
-| `woi-config.php` with `ingest_token` | Hostinger, folder above `public_html` | Server accepts uploads |
+| `woi-config.php` with `ingest_token_sha256` (from `npm run make-secret`) | Hostinger, folder above `public_html` | Server accepts automated uploads |
 | `WOI_INGEST_TOKEN` (same value) | GitHub secret | Automation can upload |
 | `WOI_SITE_URL` = `https://woiequity.com` | GitHub variable | Automation knows where to upload |
 | `WOI_AUTOMATION_ENABLED` = `true` | GitHub variable | Turns the schedule on |

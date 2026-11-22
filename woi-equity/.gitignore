@@ -4,3 +4,6 @@ dist/
 .DS_Store
 # Real server secrets never go in git
 woi-config.php
+public/api/_lib/vendor/
+.env
+.env.*

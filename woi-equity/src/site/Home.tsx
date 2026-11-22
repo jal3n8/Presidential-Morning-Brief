@@ -1,26 +1,26 @@
 import { useEffect, useState } from "react";
-import { configuredSources, NotFound } from "../lib/dataSource";
-import { validateLoaded, type LoadedSnapshot } from "../lib/dataClient";
-import { newestSnapshot } from "../lib/snapshotOrder";
-import { computeThreeHorsemen } from "../lib/regime";
-import { freshness } from "../lib/freshness";
+import { PublicSnapshotSchema, SnapshotSchema, type PublicSnapshot } from "../lib/schema";
+import { publicMode, publicProjection, publicRegime } from "../lib/publicProjection";
 import { fmtDate, fmtNum, fmtPct, fmtUsd, tone } from "../lib/format";
 
 const DASH = `${import.meta.env.BASE_URL}dashboard/`;
 
+/** Public market summary only: production reads /api/public.php (no research, no sign-in). */
+async function fetchPublic(): Promise<PublicSnapshot> {
+  if (import.meta.env.DEV) {
+    const raw = await (await fetch("/dev-data/latest.json", { cache: "no-store" })).json();
+    return publicProjection(SnapshotSchema.parse(raw));
+  }
+  const res = await fetch(`${import.meta.env.BASE_URL}api/public.php`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return PublicSnapshotSchema.parse(await res.json());
+}
+
 function useLatest() {
-  const [state, setState] = useState<{ loaded: LoadedSnapshot | null; failed: boolean }>({ loaded: null, failed: false });
+  const [state, setState] = useState<{ p: PublicSnapshot | null; failed: boolean }>({ p: null, failed: false });
   useEffect(() => {
     let live = true;
-    Promise.all(
-      configuredSources().map(async (src) => {
-        try { return validateLoaded(await src.getLatest(), src); } catch (e) { if (!(e instanceof NotFound)) console.warn(e); return null; }
-      }),
-    ).then((r) => {
-      if (!live) return;
-      const best = newestSnapshot(r.filter((x): x is LoadedSnapshot => x !== null));
-      setState({ loaded: best, failed: best === null });
-    });
+    fetchPublic().then((p) => live && setState({ p, failed: false })).catch(() => live && setState({ p: null, failed: true }));
     return () => { live = false; };
   }, []);
   return state;
@@ -56,10 +56,9 @@ const MODULES = [
 ];
 
 export function Home() {
-  const { loaded, failed } = useLatest();
-  const s = loaded?.snapshot ?? null;
-  const regime = s ? computeThreeHorsemen(s) : null;
-  const fr = s ? freshness(s) : null;
+  const { p: s, failed } = useLatest();
+  const regime = s ? { label: publicRegime(s) } : null;
+  const fr = s ? publicMode(s) : null;
 
   return (
     <div className="min-h-screen bg-ink-950 text-ivory-100">
@@ -106,8 +105,8 @@ export function Home() {
                 <div className="px-5 py-4">
                   <div className="text-2xs text-ivory-500">Regular-session close, {fmtDate(s.snapshot.equityTradingDate, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>
                   <div className="mt-4 grid grid-cols-3 gap-3 border-b border-ink-800 pb-4">
-                    <div><div className="label">S&P 500</div><div className="num mt-1 font-mono text-[15px] text-ivory-50">{fmtNum(s.washout.sp500.close) ?? "—"}</div></div>
-                    <div><div className="label">VIX</div><div className="num mt-1 font-mono text-[15px] text-ivory-50">{fmtNum(s.washout.vixClose) ?? "—"}</div></div>
+                    <div><div className="label">S&P 500</div><div className="num mt-1 font-mono text-[15px] text-ivory-50">{fmtNum(s.sp500Close) ?? "—"}</div></div>
+                    <div><div className="label">VIX</div><div className="num mt-1 font-mono text-[15px] text-ivory-50">{fmtNum(s.vixClose) ?? "—"}</div></div>
                     <div><div className="label">Regime</div><div className={`mt-1 font-mono text-[13px] ${regime.label === "DEFENSIVE" ? "text-down" : "text-ivory-100"}`}>{regime.label}</div></div>
                   </div>
                   <table className="mt-2 w-full text-[13px]">
@@ -124,6 +123,14 @@ export function Home() {
                   <p className="mt-3 text-2xs leading-relaxed text-ivory-600">
                     {fr?.mode === "SAMPLE" ? "Hand-verified historical baseline, not a live quote. " : ""}Regime is a rules-based label, not a recommendation.
                   </p>
+                  <details className="mt-2 text-2xs text-ivory-600">
+                    <summary className="cursor-pointer text-ivory-500 hover:text-ivory-300">Sources ({s.sources.length})</summary>
+                    <ul className="mt-2 space-y-1">
+                      {s.sources.map((src) => (
+                        <li key={src.key}><a className="underline decoration-ink-600 underline-offset-2 hover:text-brass-300" href={src.url} target="_blank" rel="noreferrer noopener">{src.description}</a> · retrieved {src.retrievedDate}</li>
+                      ))}
+                    </ul>
+                  </details>
                 </div>
               )}
             </aside>
@@ -185,7 +192,7 @@ export function Home() {
                   <div className="font-mono text-lg text-ivory-50 group-hover:text-brass-300">{w.symbol}</div>
                   <div className="mt-1 text-xs text-ivory-500">{w.company}</div>
                   <ul className="mt-4 space-y-1.5 text-xs text-ivory-300">
-                    {w.research.focus.map((f) => <li key={f} className="flex gap-2"><span className="text-brass-500">·</span>{f}</li>)}
+                    {w.focus.map((f) => <li key={f} className="flex gap-2"><span className="text-brass-500">·</span>{f}</li>)}
                   </ul>
                 </a>
               ))}

@@ -17,7 +17,26 @@ const TOLERANCE_PCT = 0.02;
  * dashboard shows both the reported and the recomputed value instead of
  * silently choosing one.
  */
+/** Keys that can tamper with JavaScript object prototypes. Rejected anywhere in a file. */
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+export function findForbiddenKey(v: unknown, path = "", depth = 0): string | null {
+  if (depth > 64) return path || "(root)";
+  if (Array.isArray(v)) {
+    for (let i = 0; i < v.length; i++) { const r = findForbiddenKey(v[i], `${path}[${i}]`, depth + 1); if (r) return r; }
+  } else if (v && typeof v === "object") {
+    for (const k of Object.keys(v)) {
+      const p = path ? `${path}.${k}` : k;
+      if (FORBIDDEN_KEYS.has(k)) return p;
+      const r = findForbiddenKey((v as Record<string, unknown>)[k], p, depth + 1);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
 export function validateSnapshot(input: unknown): ValidationResult {
+  const bad = findForbiddenKey(input);
+  if (bad) return { ok: false, snapshot: null, issues: [{ level: "error", path: bad, message: "Forbidden key (or nesting deeper than 64 levels)" }] };
   const parsed = SnapshotSchema.safeParse(input);
   if (!parsed.success) {
     return {

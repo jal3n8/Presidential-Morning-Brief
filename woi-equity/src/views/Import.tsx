@@ -5,6 +5,8 @@ import { addLocalImport, loadLocalImports, removeLocalImport } from "../lib/loca
 import { snapshotIdOf } from "../lib/snapshotOrder";
 import { Badge, PageHeader, Panel, SectionNote, cx } from "../components/ui";
 import { fmtDate, humanizeStatus } from "../lib/format";
+import { useAuth } from "../lib/auth";
+import { publishSnapshot, type AdminResult } from "../lib/adminApi";
 
 type Checked =
   | { ok: true; fileName: string; loaded: LoadedSnapshot }
@@ -18,9 +20,21 @@ export function ImportView({ onPreview, previewing, onExit }: { onPreview: (l: L
   const [note, setNote] = useState<string | null>(null);
   const [locals, setLocals] = useState(loadLocalImports);
   const input = useRef<HTMLInputElement>(null);
+  const auth = useAuth();
+  const [replace, setReplace] = useState(false);
+  const [published, setPublished] = useState<AdminResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function publish(raw: unknown) {
+    setBusy(true);
+    setPublished(null);
+    try { setPublished(await publishSnapshot(await auth.getToken(), raw, replace)); }
+    catch { setPublished({ ok: false, status: 0, message: "Could not reach the server." }); }
+    finally { setBusy(false); }
+  }
 
   async function handle(file: File) {
     setNote(null);
+    setPublished(null);
     if (file.size > MAX_BYTES) return setChecked({ ok: false, fileName: file.name, message: "File is larger than 2 MB; a snapshot is normally about 15 KB.", issues: [] });
     let raw: unknown;
     try {
@@ -64,7 +78,7 @@ export function ImportView({ onPreview, previewing, onExit }: { onPreview: (l: L
           </div>
           <div className="mt-3"><SectionNote>
             The file is checked against the same rules the server uses: required fields, number types, dates, source references, and every derived percentage is recomputed.
-            Use this to test a file from Gemini before publishing it.
+            Nothing leaves this device until you choose Publish.
           </SectionNote></div>
         </Panel>
 
@@ -117,13 +131,24 @@ export function ImportView({ onPreview, previewing, onExit }: { onPreview: (l: L
       </div>
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <Panel kicker="Step 3" title="Publish it for everyone">
-          <ol className="list-decimal space-y-2 pl-5 text-xs leading-relaxed text-ivory-300">
-            <li>Open the project on github.com and go to the <span className="font-mono">woi-equity/inbox</span> folder.</li>
-            <li>Choose <span className="text-ivory-100">Add file → Upload files</span>, drop the JSON in, and commit to <span className="font-mono">main</span>.</li>
-            <li>GitHub validates it with these same rules, archives it, and redeploys the site. An invalid file is rejected and nothing changes.</li>
-          </ol>
-          <div className="mt-3"><SectionNote>Automated publishing (Gemini) uses the server’s secure ingest endpoint instead; see AUTOMATION_PLAN.md.</SectionNote></div>
+        <Panel kicker="Step 3" title="Publish to subscribers">
+          {!checked || !checked.ok ? <SectionNote>Check a valid file first.</SectionNote> : (
+            <div className="space-y-3">
+              <SectionNote>The server checks your admin role, validates the file again with the same strict schema, archives it, and only then updates what subscribers see. The action is recorded in the audit log.</SectionNote>
+              <label className="flex items-center gap-2 text-xs text-ivory-500">
+                <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} className="accent-[#c2a874]" />
+                Replace an existing snapshot with the same id (the old copy is kept)
+              </label>
+              <button className="btn" disabled={busy || auth.status === "preview"} onClick={() => void publish(checked.loaded.raw)}>{busy ? "Publishing…" : "Publish to server"}</button>
+              {auth.status === "preview" && <p className="text-2xs text-ivory-600">Publishing needs the real server and an admin sign-in; it is disabled in local preview.</p>}
+              {published && (
+                <div className={published.ok ? "text-xs text-up" : "text-xs text-down"}>
+                  {published.message}
+                  {published.issues && <ul className="mt-1 font-mono text-2xs text-ivory-500">{published.issues.map((i, n) => <li key={n}>{i.path}: {i.message}</li>)}</ul>}
+                </div>
+              )}
+            </div>
+          )}
         </Panel>
 
         <Panel kicker="This browser" title="Locally kept imports" right={<span className="font-mono">{locals.length}</span>}>

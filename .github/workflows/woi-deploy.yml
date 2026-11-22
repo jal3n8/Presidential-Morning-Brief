@@ -1,35 +1,39 @@
-# WOI Equity: test, build and publish the website for Hostinger.
+# WOI Equity: security checks, tests, build, and (only when enabled) deploy.
 #
-# Runs when anything in woi-equity/ changes on main (including a JSON file
-# uploaded to woi-equity/inbox). It:
-#   1. publishes any inbox JSON into the bundled archive (rejects bad files)
-#   2. runs all tests and builds the site
-#   3. pushes the finished site to the "hostinger-deploy" branch
-# Hostinger pulls that branch into public_html (see START_HERE.md, step 5).
+# On every pull request and push touching woi-equity/:
+#   dependency audits (npm + composer), 118+ tests including the PHP
+#   security suite, production build, built-site security check.
+# Deploy to the hostinger-deploy branch happens ONLY on main, ONLY if every
+# check passed, and ONLY when the repository variable WOI_DEPLOY_ENABLED is
+# "true" (you switch it on after reviewing SECURITY.md).
 
-name: WOI Equity deploy
+name: WOI Equity checks and deploy
 
 on:
   push:
     branches: [main]
     paths: ["woi-equity/**", ".github/workflows/woi-deploy.yml"]
+  pull_request:
+    paths: ["woi-equity/**", ".github/workflows/woi-deploy.yml"]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: woi-deploy
+  group: woi-deploy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  verify:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: woi-equity
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -40,53 +44,69 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.2"
+          tools: composer:v2
+          coverage: none
 
-      - name: Install
+      - name: Install PHP packages
+        run: composer install --no-dev --no-interaction --no-progress --optimize-autoloader --working-dir=public/api/_lib
+
+      - name: Audit PHP packages
+        run: composer audit --working-dir=public/api/_lib
+
+      - name: Install JavaScript packages
         run: npm ci
 
-      - name: Publish uploaded JSON from the inbox
-        id: inbox
-        run: |
-          if ls inbox/*.json >/dev/null 2>&1; then
-            set +e
-            npm run -s ingest:inbox
-            echo "status=$?" >> "$GITHUB_OUTPUT"
-            set -e
-            git config user.name "woi-equity-bot"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add -A inbox public/data
-            git diff --cached --quiet || { git commit -q -m "Publish uploaded snapshot(s)"; git push; }
-          else
-            echo "status=0" >> "$GITHUB_OUTPUT"
-            echo "Inbox empty."
-          fi
+      - name: Audit JavaScript packages
+        run: npm audit --audit-level=moderate
 
-      - name: Test
+      - name: Tests (including authentication, authorization and malicious-input tests)
         run: npm test
 
       - name: Build
+        env:
+          VITE_AUTH_AUTHORITY: ${{ vars.WOI_AUTH_AUTHORITY }}
+          VITE_AUTH_CLIENT_ID: ${{ vars.WOI_AUTH_CLIENT_ID }}
+          VITE_AUTH_AUDIENCE: ${{ vars.WOI_AUTH_AUDIENCE }}
         run: npm run build
 
+      - name: Security check of the built site
+        env:
+          VITE_AUTH_AUTHORITY: ${{ vars.WOI_AUTH_AUTHORITY }}
+        run: npm run security:check
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: woi-equity/dist
+          include-hidden-files: true
+          retention-days: 7
+
+  deploy:
+    needs: verify
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.WOI_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+
       - name: Push the built site to the hostinger-deploy branch
-        working-directory: .
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if git ls-remote --exit-code --heads "$REPO_URL" hostinger-deploy >/dev/null; then
-            git clone -q --depth 1 --branch hostinger-deploy "$REPO_URL" /tmp/site
+            git clone -q --depth 1 --branch hostinger-deploy "$REPO_URL" deploy
           else
-            git init -q /tmp/site && git -C /tmp/site checkout -q -b hostinger-deploy && git -C /tmp/site remote add origin "$REPO_URL"
+            git init -q deploy && git -C deploy checkout -q -b hostinger-deploy && git -C deploy remote add origin "$REPO_URL"
           fi
-          rsync -a --delete --exclude .git woi-equity/dist/ /tmp/site/
-          cd /tmp/site
+          rsync -a --delete --exclude .git site/ deploy/
+          cd deploy
           git config user.name "woi-equity-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then echo "Site unchanged."; else git commit -q -m "Site build ${GITHUB_SHA::7}" && git push -q origin hostinger-deploy; fi
-
-      - name: Fail if an uploaded file was rejected
-        if: steps.inbox.outputs.status != '0'
-        run: |
-          echo "One or more uploaded files were rejected. See woi-equity/inbox/rejected/*.reason.txt"
-          exit 1

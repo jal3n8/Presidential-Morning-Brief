@@ -1,0 +1,16 @@
+{
+  "name": "woi-equity/server",
+  "description": "WOI Equity server-side dependencies",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.1",
+    "firebase/php-jwt": "^7.2",
+    "opis/json-schema": "^2.3"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true,
+    "allow-plugins": {}
+  }
+}

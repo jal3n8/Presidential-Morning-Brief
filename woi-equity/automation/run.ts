@@ -36,14 +36,16 @@ export function dueJob(now: Date, alreadyDone: Set<string>): { job: Job; date: s
 
 const env = (k: string) => (process.env[k] ? "set" : "missing");
 
-async function serverJson(path: string): Promise<any> {
+/** Current latest snapshot and update log, read with the machine token (never a user login). */
+async function serverState(): Promise<{ latest: unknown; status: any }> {
   const base = process.env.WOI_SITE_URL;
-  if (!base) throw new NotConfigured("WOI_SITE_URL is not set (e.g. https://woiequity.com).");
-  for (const p of [`${base}/api/data.php?file=${path}`, `${base}/data/${path === "manifest" ? "archive/index" : path}.json`]) {
-    const r = await fetch(p, { cache: "no-store" });
-    if (r.ok) return r.json();
-  }
-  return null;
+  const token = process.env.WOI_INGEST_TOKEN;
+  if (!base || !/^https:\/\//.test(base)) throw new NotConfigured("WOI_SITE_URL is not set to an https address (e.g. https://woiequity.com).");
+  if (!token) throw new NotConfigured("WOI_INGEST_TOKEN is not set.");
+  const r = await fetch(`${base}/api/automation.php`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  if (r.status === 503) throw new NotConfigured("The server has no automation token configured yet.");
+  if (!r.ok) throw new Error(`Could not read current state (HTTP ${r.status})`);
+  return r.json() as Promise<{ latest: unknown; status: any }>;
 }
 
 async function main() {
@@ -58,15 +60,14 @@ async function main() {
 
   const forced = args.includes("--force");
   const jobArg = args[args.indexOf("--job") + 1] as Job | undefined;
-  const status = await serverJson("status").catch(() => null);
+  const state = await serverState();
+  const status = state.status;
   const done = new Set<string>((status?.recentRuns ?? []).filter((r: any) => r.result !== "failed").map((r: any) => `${String(r.startedAtUtc).slice(0, 10)}:${r.job}`));
   const due = forced && jobArg ? { job: jobArg, date: wallClock(now, MARKET_TZ).date } : dueJob(now, done);
   if (!due) { console.log("Nothing due now."); return; }
 
-  const token = process.env.WOI_INGEST_TOKEN;
-  if (!token) throw new NotConfigured("WOI_INGEST_TOKEN is not set.");
-  const prevRaw = await serverJson("latest");
-  const prev = validateSnapshot(prevRaw);
+  const token = process.env.WOI_INGEST_TOKEN!;
+  const prev = validateSnapshot(state.latest);
   if (!prev.ok) throw new Error("Current published snapshot is not valid; refusing to build on it.");
 
   const sessionDate = due.job === "closing_snapshot" ? lastCompletedSession(new Date(now.getTime() + 60_000)) : previousTradingDay(due.date);

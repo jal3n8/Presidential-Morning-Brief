@@ -1,4 +1,8 @@
-# Helper files (names starting with _) are code libraries, never endpoints.
-<FilesMatch "^_">
-  Require all denied
-</FilesMatch>
+# API folder hardening.
+Options -Indexes
+# Belt and braces: block _lib (also denied by its own .htaccess) and stray files.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^_lib(/|$) - [F,L]
+  RewriteRule \.(json|lock|log|md|dist|txt)$ - [F,L]
+</IfModule>

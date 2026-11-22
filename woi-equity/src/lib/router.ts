@@ -12,7 +12,8 @@ export type Route =
   | { name: "research"; q?: string }
   | { name: "history" }
   | { name: "system" }
-  | { name: "import" };
+  | { name: "import" }
+  | { name: "admin" };
 
 export function parseHash(hash: string): Route {
   const [path, query = ""] = hash.replace(/^#\/?/, "").split("?");
@@ -29,6 +30,7 @@ export function parseHash(hash: string): Route {
     case "history": return { name: "history" };
     case "system": return { name: "system" };
     case "import": return { name: "import" };
+    case "admin": return { name: "admin" };
     default: return { name: "command" };
   }
 }

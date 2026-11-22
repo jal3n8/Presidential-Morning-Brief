@@ -15,8 +15,12 @@ import { Research } from "./views/Research";
 import { History } from "./views/History";
 import { System } from "./views/System";
 import { ImportView } from "./views/Import";
+import { AdminView } from "./views/Admin";
+import { useAuth, canSee } from "./lib/auth";
+import { Gate } from "./components/Gate";
+import type { Role } from "./lib/schema";
 
-const NAV: { name: Route["name"]; path: string; label: string; short: string }[] = [
+const NAV: { name: Route["name"]; path: string; label: string; short: string; min?: Role }[] = [
   { name: "command", path: "", label: "Command Center", short: "Command" },
   { name: "watchlist", path: "watchlist", label: "Watchlist", short: "Watchlist" },
   { name: "regime", path: "regime", label: "Three Horsemen", short: "Horsemen" },
@@ -26,7 +30,8 @@ const NAV: { name: Route["name"]; path: string; label: string; short: string }[]
   { name: "research", path: "research", label: "Research & Sources", short: "Sources" },
   { name: "history", path: "history", label: "History", short: "History" },
   { name: "system", path: "system", label: "Audit & Data", short: "Audit" },
-  { name: "import", path: "import", label: "Import JSON", short: "Import" },
+  { name: "import", path: "import", label: "Import & publish", short: "Import", min: "admin" },
+  { name: "admin", path: "admin", label: "Admin", short: "Admin", min: "admin" },
 ];
 
 function useNow(ms = 60_000) {
@@ -38,9 +43,21 @@ function useNow(ms = 60_000) {
   return now;
 }
 
+/** Signed-out, unconfigured and no-subscription states never reach the terminal or its data. */
 export default function App() {
-  const data = useTerminalData();
+  const auth = useAuth();
+  if (auth.status === "signedIn" || auth.status === "preview") {
+    if (canSee(auth.role, "subscriber")) return <Terminal />;
+  }
+  return <Gate />;
+}
+
+function Terminal() {
+  const auth = useAuth();
+  const data = useTerminalData(auth.getToken);
   const route = useRoute();
+  const nav = NAV.filter((n) => !n.min || canSee(auth.role, n.min));
+  const allowed = (name: Route["name"]) => nav.some((n) => n.name === name) || name === "stock";
   const now = useNow();
   /** An imported file being previewed. Never published; cleared on reload. */
   const [preview, setPreview] = useState<LoadedSnapshot | null>(null);
@@ -56,7 +73,7 @@ export default function App() {
         <div className="sticky top-0 flex h-screen flex-col">
           <Brand />
           <nav className="mt-2 flex-1 overflow-y-auto px-2" aria-label="Dashboard sections">
-            {NAV.map((n, i) => (
+            {nav.map((n, i) => (
               <a key={n.name} href={href(n.path)} aria-current={active === n.name ? "page" : undefined}
                  className={cx("flex items-center gap-3 px-3 py-2 text-[13px]", active === n.name ? "bg-ink-850 text-ivory-50" : "text-ivory-500 hover:text-ivory-100")}>
                 <span className={cx("font-mono text-[10px]", active === n.name ? "text-brass-400" : "text-ivory-700")}>{String(i + 1).padStart(2, "0")}</span>
@@ -65,7 +82,9 @@ export default function App() {
             ))}
           </nav>
           <div className="border-t border-ink-700 p-4 text-2xs leading-relaxed text-ivory-600">
-            <a href={import.meta.env.BASE_URL} className="link text-ivory-500">← woiequity.com</a>
+            {auth.name && <div className="mb-2 truncate text-ivory-500">{auth.name} · <span className="uppercase">{auth.role}</span></div>}
+            {auth.status === "signedIn" && <button onClick={auth.signOut} className="btn mb-3 px-2 py-1 text-2xs">Sign out</button>}
+            <div><a href={import.meta.env.BASE_URL} className="link text-ivory-500">← woiequity.com</a></div>
             <p className="mt-2">Watchlist research only. Rules-based labels are not trade instructions.</p>
           </div>
         </div>
@@ -87,6 +106,7 @@ export default function App() {
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              {auth.status === "preview" && <Badge tone="caution">Local preview</Badge>}
               {preview && <Badge tone="brass">Preview</Badge>}
               {fr && <Badge tone={fr.mode === "LIVE" ? "up" : fr.mode === "SAMPLE" ? "caution" : "neutral"}>{fr.mode}</Badge>}
               {fr?.stale && <Badge tone="down">Stale</Badge>}
@@ -102,7 +122,7 @@ export default function App() {
             </div>
           </div>
           <nav className="scrollbar-none flex gap-1 overflow-x-auto border-t border-ink-800 px-2 lg:hidden" aria-label="Dashboard sections">
-            {NAV.map((n) => (
+            {nav.map((n) => (
               <a key={n.name} href={href(n.path)} className={cx("shrink-0 border-b px-2.5 py-2 text-xs", active === n.name ? "border-brass-400 text-ivory-50" : "border-transparent text-ivory-500")}>{n.short}</a>
             ))}
           </nav>
@@ -119,7 +139,11 @@ export default function App() {
         )}
 
         <main className="mx-auto max-w-[1400px] px-4 py-5 lg:px-6 lg:py-6">
-          {route.name === "import" ? (
+          {!allowed(route.name) ? (
+            <div className="mx-auto max-w-xl border border-ink-700 bg-ink-900 p-6 text-sm text-ivory-300">This page is for administrators. <a className="link" href={href("")}>Back to the Command Center</a></div>
+          ) : route.name === "admin" ? (
+            <AdminView data={data} />
+          ) : route.name === "import" ? (
             <ImportView onPreview={(l) => { setPreview(l); window.location.hash = "#/"; }} previewing={preview} onExit={() => setPreview(null)} />
           ) : (
             <>

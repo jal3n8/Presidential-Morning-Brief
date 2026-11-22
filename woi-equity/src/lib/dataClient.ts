@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { validateSnapshot, type Issue } from "./validate";
 import { ArchiveManifestSchema, PipelineStatusSchema, type ArchiveEntry, type PipelineStatus, type Snapshot } from "./schema";
-import { configuredSources, NotFound, type DataSource } from "./dataSource";
+import { AuthRequired, configuredSources, NotFound, type DataSource, type TokenGetter } from "./dataSource";
 import { compareEntries, newestSnapshot, snapshotIdOf } from "./snapshotOrder";
 import { loadLocalImports } from "./localImports";
 
@@ -17,7 +17,7 @@ export type LoadedSnapshot = {
   sourceLabel: string;
 };
 
-export type SourceReport = { id: string; label: string; state: "ok" | "absent" | "invalid" | "error"; detail: string | null; issues: Issue[] };
+export type SourceReport = { id: string; label: string; state: "ok" | "absent" | "invalid" | "error" | "auth"; detail: string | null; issues: Issue[] };
 
 export type SourcedEntry = ArchiveEntry & { source: string; sourceLabel: string };
 
@@ -38,6 +38,7 @@ async function loadFrom(src: DataSource): Promise<{ loaded: LoadedSnapshot | nul
   } catch (e) {
     const err = e as Error & { issues?: Issue[] };
     if (e instanceof NotFound) return { loaded: null, report: { id: src.id, label: src.label, state: "absent", detail: "No latest snapshot published here yet", issues: [] } };
+    if (e instanceof AuthRequired) return { loaded: null, report: { id: src.id, label: src.label, state: "auth", detail: err.message, issues: [] } };
     return { loaded: null, report: { id: src.id, label: src.label, state: err.issues ? "invalid" : "error", detail: err.message, issues: err.issues ?? [] } };
   }
 }
@@ -91,8 +92,8 @@ const readAuto = () => {
  * Loads every configured source, shows the newest valid snapshot, and polls.
  * A failed or invalid fetch never replaces what is on screen.
  */
-export function useTerminalData(): TerminalState {
-  const sourcesRef = useRef<DataSource[]>(configuredSources());
+export function useTerminalData(getToken: TokenGetter): TerminalState {
+  const sourcesRef = useRef<DataSource[]>(configuredSources(getToken));
   const [current, setCurrent] = useState<LoadedSnapshot | null>(null);
   const [sources, setSources] = useState<SourceReport[]>([]);
   const [lastError, setLastError] = useState<TerminalState["lastError"]>(null);
@@ -117,7 +118,7 @@ export function useTerminalData(): TerminalState {
       setCurrent(best);
       setLastError(null);
     } else {
-      const bad = results.find((r) => r.report.state === "invalid" || r.report.state === "error")?.report;
+      const bad = results.find((r) => r.report.state !== "ok" && r.report.state !== "absent")?.report;
       setLastError({ message: bad?.detail ?? "No source returned a snapshot", issues: bad?.issues ?? [], at: new Date() });
     }
     setLoading(false);

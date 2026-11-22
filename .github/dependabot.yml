@@ -1,0 +1,13 @@
+# Weekly dependency update pull requests (security fixes arrive as they are published).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /woi-equity
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: composer
+    directory: /woi-equity/public/api/_lib
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

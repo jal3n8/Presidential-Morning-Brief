@@ -1,15 +1,12 @@
 /**
  * Where the dashboard reads snapshots from.
  *
- * Two adapters implement one interface:
- *  - StaticJsonDataSource: plain JSON files shipped with the site (/data).
- *    Holds the bundled baseline, works offline and in local preview.
- *  - HttpDataSource: the server's data API (/api/data.php on Hostinger),
- *    which serves the live store written by the ingest endpoint. It sends
- *    the browser's session cookie, so it can later be restricted to signed-in
- *    members on the server without any secret in browser code.
+ * Production: ONLY the server data API (/api/data.php), with the signed-in
+ * user's access token. The server checks the role on every request; there
+ * are no data files in the public website folder.
  *
- * Neither adapter ever talks to Google Drive or any API that needs a key.
+ * Development (`npm run dev` only): a local preview source reading the
+ * bundled seed through the dev server. Removed from production builds.
  */
 
 export class NotFound extends Error {
@@ -17,6 +14,7 @@ export class NotFound extends Error {
     super(`${what} not found`);
   }
 }
+export class AuthRequired extends Error {}
 
 export interface DataSource {
   readonly id: string;
@@ -28,44 +26,26 @@ export interface DataSource {
   getArchived(path: string): Promise<unknown>;
 }
 
-async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
-  const res = await fetch(url, { cache: "no-store", ...init });
-  if (res.status === 404) throw new NotFound(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+export type TokenGetter = () => Promise<string | null>;
+
+async function fetchJson(url: string, token: string | null): Promise<unknown> {
+  const res = await fetch(url, { cache: "no-store", credentials: "same-origin", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (res.status === 401) throw new AuthRequired("Your session has ended. Please sign in again.");
+  if (res.status === 403) throw new AuthRequired("Your account does not have access to this data.");
+  if (res.status === 404) throw new NotFound(url.split("?")[0]);
+  if (res.status === 429) throw new Error("Too many requests; trying again shortly.");
+  if (!res.ok) throw new Error(`The data service answered HTTP ${res.status}.`);
   const type = res.headers.get("content-type") ?? "";
   const text = await res.text();
-  // A host that answers unknown paths with an HTML page means "not available here".
-  if (!type.includes("json") && /^\s*</.test(text)) throw new NotFound(url);
+  if (!type.includes("json")) throw new NotFound(url.split("?")[0]);
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`Response from ${url} is not valid JSON`);
+    throw new Error("The data service returned invalid JSON.");
   }
 }
 
 const bust = (url: string) => `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
-
-export class StaticJsonDataSource implements DataSource {
-  constructor(readonly id: string, readonly label: string, private base: string) {
-    this.base = base.replace(/\/$/, "");
-  }
-  getLatest = () => fetchJson(bust(`${this.base}/latest.json`));
-  getManifest = () => fetchJson(bust(`${this.base}/archive/index.json`));
-  getStatus = () => fetchJson(bust(`${this.base}/status.json`));
-  getArchived = (path: string) => fetchJson(`${this.base}/${safePath(path)}`);
-  fileUrl = (path: string) => `${this.base}/${safePath(path)}`;
-}
-
-export class HttpDataSource implements DataSource {
-  constructor(readonly id: string, readonly label: string, private endpoint: string) {}
-  private q = (params: Record<string, string>) => bust(`${this.endpoint}?${new URLSearchParams(params)}`);
-  private get = (params: Record<string, string>) => fetchJson(this.q(params), { credentials: "same-origin" });
-  getLatest = () => this.get({ file: "latest" });
-  getManifest = () => this.get({ file: "manifest" });
-  getStatus = () => this.get({ file: "status" });
-  getArchived = (path: string) => this.get({ file: "archive", id: safePath(path).replace(/^archive\//, "").replace(/\.json$/, "") });
-  fileUrl = (path: string) => `${this.endpoint}?${new URLSearchParams({ file: "archive", id: safePath(path).replace(/^archive\//, "").replace(/\.json$/, "") })}`;
-}
 
 /** Manifest paths are data, so they are constrained before use in a URL. */
 export function safePath(path: string): string {
@@ -73,22 +53,39 @@ export function safePath(path: string): string {
   if (!/^archive\/[A-Za-z0-9_.-]+\.json$/.test(p)) throw new Error(`Refusing unexpected archive path "${path}"`);
   return p;
 }
+const idFromPath = (path: string) => safePath(path).replace(/^archive\//, "").replace(/\.json$/, "");
+
+export class HttpDataSource implements DataSource {
+  constructor(readonly id: string, readonly label: string, private endpoint: string, private getToken: TokenGetter) {}
+  private async get(params: Record<string, string>) {
+    const token = await this.getToken();
+    if (!token) throw new AuthRequired("Please sign in.");
+    return fetchJson(bust(`${this.endpoint}?${new URLSearchParams(params)}`), token);
+  }
+  getLatest = () => this.get({ file: "latest" });
+  getManifest = () => this.get({ file: "manifest" });
+  getStatus = () => this.get({ file: "status" });
+  getArchived = (path: string) => this.get({ file: "archive", id: idFromPath(path) });
+  /** Authenticated download (a plain link would not carry the token). */
+  download = async (path: string) => JSON.stringify(await this.getArchived(path), null, 2);
+}
+
+export class StaticJsonDataSource implements DataSource {
+  constructor(readonly id: string, readonly label: string, private base: string) {
+    this.base = base.replace(/\/$/, "");
+  }
+  getLatest = () => fetchJson(bust(`${this.base}/latest.json`), null);
+  getManifest = () => fetchJson(bust(`${this.base}/archive/index.json`), null);
+  getStatus = () => fetchJson(bust(`${this.base}/status.json`), null);
+  getArchived = (path: string) => fetchJson(`${this.base}/${safePath(path)}`, null);
+  download = async (path: string) => JSON.stringify(await this.getArchived(path), null, 2);
+}
 
 const BASE = import.meta.env.BASE_URL ?? "/";
 
-/**
- * Configured sources, highest priority first. The newest valid snapshot
- * across all of them is shown, so a manual upload through GitHub and an
- * automated ingest can coexist.
- *   VITE_LIVE_API: data API endpoint ("" disables it). Default /api/data.php
- *   VITE_BUNDLED_DATA: bundled JSON folder. Default <base>data
- */
-export function configuredSources(): (StaticJsonDataSource | HttpDataSource)[] {
-  const env = import.meta.env as Record<string, string | undefined>;
-  const live = env.VITE_LIVE_API ?? `${BASE}api/data.php`;
-  const bundled = env.VITE_BUNDLED_DATA ?? `${BASE}data`;
-  const out: (StaticJsonDataSource | HttpDataSource)[] = [];
-  if (live) out.push(new HttpDataSource("live", "Live data store", live));
-  out.push(new StaticJsonDataSource("bundled", "Bundled snapshots", bundled));
-  return out;
+export function configuredSources(getToken: TokenGetter): (HttpDataSource | StaticJsonDataSource)[] {
+  if (import.meta.env.DEV && (import.meta.env as Record<string, string | undefined>).VITE_DEV_PREVIEW !== "0") {
+    return [new StaticJsonDataSource("dev", "Local preview (seed data, no sign-in)", "/dev-data")];
+  }
+  return [new HttpDataSource("live", "WOI Equity data service", `${BASE}api/data.php`, getToken)];
 }

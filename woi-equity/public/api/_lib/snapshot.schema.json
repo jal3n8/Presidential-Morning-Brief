@@ -1,0 +1,1531 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^2\\.\\d{1,3}\\.\\d{1,3}$"
+    },
+    "project": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "reportDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "equityTradingDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "equitySession": {
+          "type": "string",
+          "enum": [
+            "regular_close",
+            "opening",
+            "intraday",
+            "pre_market"
+          ]
+        },
+        "equityMarketTimezone": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "displayTimezone": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[A-Za-z_]+(\\/[A-Za-z0-9_+-]+){0,2}$"
+        },
+        "collectionMethod": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+        },
+        "isLive": {
+          "type": "boolean"
+        },
+        "quality": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+        },
+        "lastSuccessfulAutomatedRunUtc": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 40,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapshotId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]{1,80}$"
+        },
+        "openingSessionDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      },
+      "required": [
+        "reportDate",
+        "equityTradingDate",
+        "equitySession",
+        "equityMarketTimezone",
+        "displayTimezone",
+        "collectionMethod",
+        "isLive",
+        "quality",
+        "lastSuccessfulAutomatedRunUtc"
+      ],
+      "additionalProperties": false
+    },
+    "marketRegime": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "rule": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "instruments": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "symbol": {
+                "type": "string",
+                "maxLength": 16
+              },
+              "closeUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "sma200Usd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "pctVsSma200": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "sideOfSma200": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "above",
+                      "below",
+                      "at"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dataSources": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+                }
+              }
+            },
+            "required": [
+              "symbol",
+              "closeUsd",
+              "sma200Usd",
+              "pctVsSma200",
+              "sideOfSma200",
+              "dataSources"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "allBelow200DaySma": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "DEFENSIVE",
+                "NOT DEFENSIVE"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "labelType": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+        }
+      },
+      "required": [
+        "name",
+        "rule",
+        "instruments",
+        "allBelow200DaySma",
+        "label",
+        "labelType"
+      ],
+      "additionalProperties": false
+    },
+    "washout": {
+      "type": "object",
+      "properties": {
+        "sp500": {
+          "type": "object",
+          "properties": {
+            "symbol": {
+              "type": "string",
+              "maxLength": 16
+            },
+            "close": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "sma200": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "pctVsSma200": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "rsi14": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "previousHighestDailyClose": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "pctDrawdownFromClosingPeak": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "oneYearAgoClose": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "oneYearComparisonDate": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "yearOverYearPriceReturnPct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "dataSources": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+              }
+            },
+            "peakLookbackStart": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "symbol",
+            "close",
+            "sma200",
+            "pctVsSma200",
+            "rsi14",
+            "previousHighestDailyClose",
+            "pctDrawdownFromClosingPeak",
+            "oneYearAgoClose",
+            "oneYearComparisonDate",
+            "yearOverYearPriceReturnPct",
+            "dataSources"
+          ],
+          "additionalProperties": false
+        },
+        "vixClose": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "vixSource": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fiveDaySigma": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fiveDaySigmaStatus": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vixCluster": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "maxLength": 100
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vixRealizedStabilizing": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "scoreStatus": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interpretation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sp500",
+        "vixClose",
+        "vixSource",
+        "fiveDaySigma",
+        "vixCluster",
+        "vixRealizedStabilizing",
+        "score"
+      ],
+      "additionalProperties": false
+    },
+    "club3030": {
+      "type": "object",
+      "properties": {
+        "triggered": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+        },
+        "isFridayClose": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "sp500YearOverYearPositive": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requiredRuleDefinition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "triggered",
+        "status",
+        "isFridayClose",
+        "sp500YearOverYearPositive",
+        "requiredRuleDefinition"
+      ],
+      "additionalProperties": false
+    },
+    "macroAndConfirmation": {
+      "type": "object",
+      "properties": {
+        "nominalUsTreasury2YearYieldPct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "nominalYieldSource": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "real2YearYieldThreeMonthChangeBps": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "real2YearYieldTrend": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "rising",
+                "falling",
+                "flat"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "realYieldStatus": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nasdaqBreadth": {
+          "type": "object",
+          "properties": {
+            "new52WeekHighs": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "new52WeekLows": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "newHighMinusNewLow": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "zweigBreadthThrustConfirmed": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "new52WeekHighs",
+            "new52WeekLows",
+            "newHighMinusNewLow",
+            "source",
+            "zweigBreadthThrustConfirmed"
+          ],
+          "additionalProperties": false
+        },
+        "bitcoin": {
+          "type": "object",
+          "properties": {
+            "symbol": {
+              "type": "string",
+              "maxLength": 16
+            },
+            "utcCandleDate": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "dailyCandleCloseUsd": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "sma100Usd": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "sma200Usd": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "vsSma100": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "vsSma200": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "smaStatus": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "symbol",
+            "utcCandleDate",
+            "dailyCandleCloseUsd",
+            "sma100Usd",
+            "sma200Usd",
+            "vsSma100",
+            "vsSma200",
+            "source"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "nominalUsTreasury2YearYieldPct",
+        "nominalYieldSource",
+        "real2YearYieldThreeMonthChangeBps",
+        "real2YearYieldTrend",
+        "nasdaqBreadth",
+        "bitcoin"
+      ],
+      "additionalProperties": false
+    },
+    "watchlist": {
+      "minItems": 1,
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "maxLength": 16,
+            "pattern": "^[A-Z0-9.^-]{1,16}$"
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "regularSessionClose": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "closeDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oneDayChangePct": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "marketDataSource": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "technicalIndicators": {
+            "type": "object",
+            "properties": {
+              "sma50Usd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "sma200Usd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "rsi14": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "sma200Availability": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200,
+                    "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sma200Note": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "method": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "sma50Usd",
+              "sma200Usd",
+              "rsi14"
+            ],
+            "additionalProperties": false
+          },
+          "research": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+              },
+              "focus": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "verifiedCatalysts": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "type": {
+                      "default": "other",
+                      "type": "string",
+                      "enum": [
+                        "sec_filing",
+                        "earnings",
+                        "company_announcement",
+                        "market_news",
+                        "launch",
+                        "other"
+                      ]
+                    },
+                    "date": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "summary": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sourceRef": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2048,
+                          "pattern": "^https?:\\/\\/[^\\s\"'<>\\\\]+$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "verificationMethod": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "form": {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    "publishedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 40,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "effectiveAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 40,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "verificationStatus": {
+                      "type": "string",
+                      "enum": [
+                        "verified",
+                        "unverified",
+                        "contradicted"
+                      ]
+                    },
+                    "quote": {
+                      "type": "string",
+                      "maxLength": 600
+                    }
+                  },
+                  "required": [
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "verifiedFilings": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "type": {
+                      "default": "other",
+                      "type": "string",
+                      "enum": [
+                        "sec_filing",
+                        "earnings",
+                        "company_announcement",
+                        "market_news",
+                        "launch",
+                        "other"
+                      ]
+                    },
+                    "date": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "summary": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sourceRef": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2048,
+                          "pattern": "^https?:\\/\\/[^\\s\"'<>\\\\]+$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "verificationMethod": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "form": {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    "publishedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 40,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "effectiveAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 40,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "verificationStatus": {
+                      "type": "string",
+                      "enum": [
+                        "verified",
+                        "unverified",
+                        "contradicted"
+                      ]
+                    },
+                    "quote": {
+                      "type": "string",
+                      "maxLength": 600
+                    }
+                  },
+                  "required": [
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "unverifiedClaims": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "type": {
+                      "default": "other",
+                      "type": "string",
+                      "enum": [
+                        "sec_filing",
+                        "earnings",
+                        "company_announcement",
+                        "market_news",
+                        "launch",
+                        "other"
+                      ]
+                    },
+                    "date": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "summary": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sourceRef": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2048,
+                          "pattern": "^https?:\\/\\/[^\\s\"'<>\\\\]+$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "verificationMethod": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "form": {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    "publishedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 40,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "effectiveAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 40,
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "verificationStatus": {
+                      "type": "string",
+                      "enum": [
+                        "verified",
+                        "unverified",
+                        "contradicted"
+                      ]
+                    },
+                    "quote": {
+                      "type": "string",
+                      "maxLength": 600
+                    }
+                  },
+                  "required": [
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "summary": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "asOf": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "scenarios": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "bull": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 4000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "bear": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 4000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "author": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "asOf": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 40,
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "bull",
+                      "bear",
+                      "author",
+                      "asOf"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "focus",
+              "verifiedCatalysts",
+              "verifiedFilings",
+              "unverifiedClaims",
+              "summary",
+              "asOf"
+            ],
+            "additionalProperties": false
+          },
+          "listingDate": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "intraday": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "price": {
+                    "type": "number"
+                  },
+                  "asOfUtc": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+                  },
+                  "source": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+                  }
+                },
+                "required": [
+                  "price",
+                  "asOfUtc",
+                  "source"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "symbol",
+          "company",
+          "currency",
+          "regularSessionClose",
+          "closeDate",
+          "oneDayChangePct",
+          "marketDataSource",
+          "technicalIndicators",
+          "research"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "automationPlan": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "equitiesCalendar": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+        },
+        "proposedJobs": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+              },
+              "time": {
+                "type": "string",
+                "pattern": "^\\d{2}:\\d{2}$"
+              },
+              "timezone": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "days": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+              },
+              "purpose": {
+                "type": "string",
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "name",
+              "time",
+              "timezone",
+              "days",
+              "purpose"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ingestion": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+        },
+        "storage": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "dashboardRefresh": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "credentials": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_ .:/()-]*$"
+        }
+      },
+      "required": [
+        "status",
+        "enabled",
+        "equitiesCalendar",
+        "proposedJobs",
+        "ingestion",
+        "storage",
+        "dashboardRefresh",
+        "credentials"
+      ],
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "noFabricatedNulls": {
+          "type": "boolean"
+        },
+        "neverOverwriteValidSnapshotWithFailedRun": {
+          "type": "boolean"
+        },
+        "blockedFromAutomatedTradeSignals": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9.]{1,100}$"
+          }
+        },
+        "warnings": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      },
+      "required": [
+        "noFabricatedNulls",
+        "neverOverwriteValidSnapshotWithFailedRun",
+        "blockedFromAutomatedTradeSignals",
+        "warnings"
+      ],
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^https?:\\/\\/[^\\s\"'<>\\\\]+$"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "retrievedDate": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "market_data",
+              "sec_filing",
+              "earnings",
+              "company_announcement",
+              "market_news",
+              "calendar",
+              "reference"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "publishedDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publisher": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "url",
+          "description",
+          "retrievedDate"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "project",
+    "snapshot",
+    "marketRegime",
+    "washout",
+    "club3030",
+    "macroAndConfirmation",
+    "watchlist",
+    "validation",
+    "sources"
+  ],
+  "additionalProperties": false
+}

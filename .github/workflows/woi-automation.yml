@@ -43,6 +43,8 @@ jobs:
       SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -50,9 +52,11 @@ jobs:
           cache-dependency-path: woi-equity/package-lock.json
       - run: npm ci
       - name: Run the job that is due
+        env:
+          FORCED_JOB: ${{ inputs.job }}
         run: |
-          if [ -n "${{ inputs.job }}" ]; then
-            npm run -s automation:run -- --job "${{ inputs.job }}" --force
-          else
-            npm run -s automation:run
-          fi
+          case "$FORCED_JOB" in
+            "") npm run -s automation:run ;;
+            opening_snapshot|closing_snapshot) npm run -s automation:run -- --job "$FORCED_JOB" --force ;;
+            *) echo "Unknown job"; exit 1 ;;
+          esac
