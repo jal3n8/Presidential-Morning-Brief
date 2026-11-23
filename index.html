@@ -201,6 +201,110 @@
         .non-negotiables strong {
             color: #6366f1;
         }
+
+        /* ---- Market regime ---- */
+        :root {
+            --good: #34d399;
+            --bad: #f87171;
+            --warn: #fbbf24;
+            --muted: #adb5bd;
+            --faint: #6c757d;
+        }
+
+        .pill {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 999px;
+            border: 0.5px solid currentColor;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .pill.good { color: var(--good); }
+        .pill.bad { color: var(--bad); }
+        .pill.warn { color: var(--warn); }
+        .pill.muted { color: var(--faint); }
+
+        .regime-value.good { color: var(--good); }
+        .regime-value.bad { color: var(--bad); }
+        .regime-value.warn { color: var(--warn); }
+
+        .rows { margin-top: 12px; }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 4px 12px;
+            align-items: baseline;
+            padding: 9px 0;
+            border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+            font-size: 13px;
+        }
+        .row-main { color: #e9ecef; min-width: 0; }
+        .row-main .sym { font-weight: 600; margin-right: 6px; }
+        .row-side { text-align: right; font-variant-numeric: tabular-nums; }
+        .row-note {
+            grid-column: 1 / -1;
+            font-size: 11px;
+            color: var(--faint);
+            font-variant-numeric: tabular-nums;
+        }
+        .num { font-variant-numeric: tabular-nums; }
+        .up { color: var(--good); }
+        .down { color: var(--bad); }
+
+        .meter {
+            position: relative;
+            height: 8px;
+            margin: 10px 0 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+        }
+        .meter-fill {
+            position: absolute;
+            inset: 0 auto 0 0;
+            border-radius: 4px;
+            background: #6366f1;
+        }
+        .meter-ghost {
+            position: absolute;
+            inset: 0 auto 0 0;
+            border-radius: 4px;
+            background: rgba(99, 102, 241, 0.3);
+        }
+        .meter-mark {
+            position: absolute;
+            top: -4px;
+            bottom: -4px;
+            width: 2px;
+            background: var(--warn);
+        }
+
+        .check {
+            display: inline-block;
+            width: 16px;
+            font-weight: 700;
+        }
+
+        .alert {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #e9ecef;
+            background: rgba(251, 191, 36, 0.08);
+            border: 0.5px solid rgba(251, 191, 36, 0.35);
+        }
+        .alert strong { color: var(--warn); }
+
+        .data-stamp {
+            font-size: 11px;
+            color: var(--faint);
+            margin: -4px 0 12px;
+        }
     </style>
 </head>
 <body>
@@ -268,6 +372,11 @@
         
         <!-- SPARK TAB -->
         <div id="spark" class="tab-content">
+            <!-- Market regime (rendered from market-regime.json) -->
+            <div class="section-title">Market Regime</div>
+            <div class="data-stamp" id="regime-stamp">Loading market-regime.json…</div>
+            <div id="regime"></div>
+
             <!-- Financial snapshot -->
             <div class="section-title">Market Snapshot</div>
             <div class="grid-2">
@@ -396,12 +505,241 @@
             return descriptions[code] || 'Cloudy';
         }
         
+        // ---------- Market regime ----------
+        // Reads market-regime.json and re-evaluates every rule from the raw
+        // values, so a stale or wrong precomputed flag in the payload shows up
+        // as a warning instead of being displayed as fact.
+        const fmt = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+        const pct = (n, d = 2) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n), d) + '%';
+        const dir = n => (n > 0 ? 'up' : n < 0 ? 'down' : '');
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const fresh = f => f === 'live'
+            ? '<span class="pill good">live</span>'
+            : '<span class="pill muted">' + (f === 'priorClose' ? 'prior close' : esc(f)) + '</span>';
+        const vsPct = (price, ma) => (price / ma - 1) * 100;
+
+        function evaluateRegime(d) {
+            const out = { warnings: [] };
+
+            // Three Horsemen
+            const h = d.threeHorsemen;
+            const tickers = ['spy', 'qqq', 'iwm'].map(k => {
+                const t = h[k];
+                const gap = vsPct(t.price, t.sma200);
+                const above = gap > 0;
+                if (t.vs200d && (t.vs200d === 'Above') !== above) {
+                    out.warnings.push(`${k.toUpperCase()} is flagged "${t.vs200d}" its 200D but price ${fmt(t.price)} vs SMA ${fmt(t.sma200)} says otherwise.`);
+                }
+                return { sym: k.toUpperCase(), ...t, gap, above };
+            });
+            const nAbove = tickers.filter(t => t.above).length;
+            out.horsemen = {
+                tickers,
+                regime: nAbove === 3 ? 'RISK-ON' : nAbove === 0 ? 'DEFENSIVE' : 'MIXED',
+                tone: nAbove === 3 ? 'good' : nAbove === 0 ? 'bad' : 'warn',
+                detail: nAbove === 3 ? 'All three above 200D SMA' : nAbove === 0 ? 'All three below 200D SMA' : `${nAbove} of 3 above 200D SMA`
+            };
+            if (h.regime && !h.regime.toUpperCase().startsWith(out.horsemen.regime)) {
+                out.warnings.push(`Payload regime "${h.regime}" disagrees with computed ${out.horsemen.regime}.`);
+            }
+
+            // Washout score
+            const w = d.washout;
+            const rules = d.rules.washoutScore;
+            const rsi = w.sp500Rsi14;
+            const liveRsi = rsi.staleIntraday && rsi.intradayFuturesRsi14 ? rsi.intradayFuturesRsi14 : rsi;
+            const criteria = [
+                {
+                    label: 'S&P RSI(14) < 30',
+                    value: rsi.staleIntraday && rsi.intradayFuturesRsi14
+                        ? `${fmt(rsi.value, 1)} at Fri close · futures ${fmt(liveRsi.value, 1)} now`
+                        : fmt(rsi.value, 1),
+                    live: liveRsi.value < 30,
+                    prior: rsi.value < 30,
+                    freshness: rsi.staleIntraday ? 'priorClose' : rsi.freshness
+                },
+                {
+                    label: 'Drawdown ≤ −10% or ≤ −10% vs 200D',
+                    value: `DD ${pct(w.sp500.drawdownPct)} · vs 200D ${pct(w.sp500.vs200dPct)}`,
+                    live: w.sp500.drawdownPct <= -10 || w.sp500.vs200dPct <= -10,
+                    freshness: w.sp500.freshness
+                },
+                {
+                    label: 'VIX ≥ 30',
+                    value: `${fmt(w.vix.value)} (prior close ${fmt(w.vix.priorClose)})`,
+                    live: w.vix.value >= 30,
+                    freshness: w.vix.freshness
+                },
+                {
+                    label: '5-day move ≤ −2.5σ',
+                    value: `${fmt(w.fiveDaySigma.value)}σ`,
+                    live: w.fiveDaySigma.value <= -2.5,
+                    freshness: w.fiveDaySigma.freshness
+                },
+                {
+                    label: 'VIX cluster (≥3 of last 5 closes ≥ 30)',
+                    value: `${w.vixCluster.daysAbove30Last5} of 5`,
+                    live: w.vixCluster.daysAbove30Last5 >= 3,
+                    freshness: w.vixCluster.freshness
+                },
+                {
+                    label: 'VIX ≥ 30 with realized vol stabilizing',
+                    value: w.vixRealizedStabilizing.active ? 'Yes' : 'No',
+                    live: w.vixRealizedStabilizing.active && w.vix.value >= 30,
+                    freshness: w.vixRealizedStabilizing.freshness
+                }
+            ];
+            criteria.forEach(c => { if (c.prior === undefined) c.prior = c.live; });
+            const liveScore = criteria.filter(c => c.live).length;
+            const priorScore = criteria.filter(c => c.prior).length;
+            if (w.vixCluster.active !== (w.vixCluster.daysAbove30Last5 >= 3)) {
+                out.warnings.push(`vixCluster.active=${w.vixCluster.active} but daysAbove30Last5=${w.vixCluster.daysAbove30Last5}.`);
+            }
+            if (w.liveScore !== undefined && w.liveScore !== liveScore) {
+                out.warnings.push(`Payload washout liveScore=${w.liveScore}, recomputed ${liveScore}.`);
+            }
+            if (w.scoreIncludingPriorCloseRsi !== undefined && w.scoreIncludingPriorCloseRsi !== priorScore) {
+                out.warnings.push(`Payload scoreIncludingPriorCloseRsi=${w.scoreIncludingPriorCloseRsi}, recomputed ${priorScore}.`);
+            }
+            out.washout = { criteria, liveScore, priorScore, max: rules.maxScore, threshold: rules.triggerThreshold };
+
+            // Club 30/30 — evaluated on the most recent Friday close.
+            // On a Monday-morning run, VIX priorClose and the prior-close RSI ARE Friday's close.
+            const c = d.club3030;
+            const genDay = new Date(d.generatedAt).getDay(); // 1 = Monday
+            const priorIsFriday = genDay === 1 || (genDay === 6 || genDay === 0);
+            const fridayVix = c.isFridayClose ? w.vix.value : priorIsFriday ? w.vix.priorClose : null;
+            const fridayRsi = c.isFridayClose || priorIsFriday ? rsi.value : null;
+            const yoyOk = w.sp500.yoyPct > 0;
+            const fridayMet = fridayVix !== null && fridayRsi !== null && fridayVix > 30 && fridayRsi < 30 && yoyOk;
+            out.club = { fridayVix, fridayRsi, yoy: w.sp500.yoyPct, yoyOk, fridayMet, payloadTriggered: c.triggered, isFridayClose: c.isFridayClose };
+            if (fridayMet && !c.triggered) {
+                out.club.flag = `Last Friday's close met every condition (VIX ${fmt(fridayVix)} > 30, RSI ${fmt(fridayRsi, 1)} < 30, YoY ${pct(w.sp500.yoyPct, 1)}), but the payload reports triggered=false — likely because today isn't a Friday. Treat 11/20 as a Club 30/30 signal unless the pipeline says otherwise.`;
+            }
+
+            // Macro
+            const y = d.macroAndConfirmation.real2yYield;
+            out.yield = { ...y, headwind: y.threeMonthChangeBps > 25 };
+            out.breadth = d.macroAndConfirmation.breadth;
+            const b = d.macroAndConfirmation.btc;
+            out.btc = { ...b, gap100: vsPct(b.priceUsd, b.sma100), gap200: vsPct(b.priceUsd, b.sma200) };
+            out.sp500 = w.sp500;
+            return out;
+        }
+
+        function renderRegime(d) {
+            const r = evaluateRegime(d);
+            const H = r.horsemen, W = r.washout, C = r.club, Y = r.yield, B = r.btc, BR = r.breadth;
+            const gen = new Date(d.generatedAt);
+            document.getElementById('regime-stamp').textContent =
+                `${d.session || ''} snapshot · generated ${gen.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })} MST`;
+
+            const tickerRows = H.tickers.map(t => `
+                <div class="row">
+                    <div class="row-main"><span class="sym">${t.sym}</span><span class="num">${fmt(t.price)}</span></div>
+                    <div class="row-side ${dir(t.gap)}">${pct(t.gap)} vs 200D</div>
+                    <div class="row-note">Day <span class="${dir(t.dayChangePct)}">${pct(t.dayChangePct)}</span> · 200D SMA ${fmt(t.sma200)}</div>
+                </div>`).join('');
+
+            const fillPct = W.liveScore / W.max * 100;
+            const ghostPct = W.priorScore / W.max * 100;
+            const markPct = W.threshold / W.max * 100;
+            const washTriggered = W.liveScore >= W.threshold;
+            const critRows = W.criteria.map(c => {
+                const stale = c.prior !== c.live;
+                const mark = c.live ? '<span class="check up">✓</span>' : stale ? '<span class="check" style="color:var(--warn)">◐</span>' : '<span class="check" style="color:var(--faint)">✗</span>';
+                return `
+                <div class="row">
+                    <div class="row-main">${mark}${esc(c.label)}</div>
+                    <div class="row-side">${fresh(c.freshness)}</div>
+                    <div class="row-note" style="padding-left:16px">${esc(c.value)}${stale ? ' — met at prior close only' : ''}</div>
+                </div>`;
+            }).join('');
+
+            const clubStatus = C.payloadTriggered
+                ? '<span class="pill good">Triggered</span>'
+                : C.fridayMet ? '<span class="pill warn">Fri close met</span>' : '<span class="pill muted">Not triggered</span>';
+            const tick = ok => ok ? '<span class="check up">✓</span>' : '<span class="check" style="color:var(--faint)">✗</span>';
+
+            const html = `
+                <div class="card">
+                    <div class="card-label">Three Horsemen · SPY / QQQ / IWM</div>
+                    <div class="card-value regime-value ${H.tone}">${H.regime}</div>
+                    <div class="card-subtext">${H.detail}</div>
+                    <div class="rows">${tickerRows}</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Washout score</div>
+                    <div class="card-value"><span class="num">${W.liveScore}</span><span style="font-size:15px;color:var(--muted)"> / ${W.max} live</span>
+                        ${washTriggered ? '<span class="pill good" style="margin-left:6px">Washout</span>' : '<span class="pill muted" style="margin-left:6px">No washout</span>'}</div>
+                    <div class="card-subtext">${W.priorScore} / ${W.max} counting Friday-close RSI · triggers at ≥ ${W.threshold}</div>
+                    <div class="meter" role="img" aria-label="Washout score ${W.liveScore} of ${W.max}, threshold ${W.threshold}">
+                        <div class="meter-ghost" style="width:${ghostPct}%"></div>
+                        <div class="meter-fill" style="width:${fillPct}%"></div>
+                        <div class="meter-mark" style="left:calc(${markPct}% - 1px)"></div>
+                    </div>
+                    <div class="rows">${critRows}</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Club 30/30</div>
+                    <div class="card-value" style="font-size:18px">${clubStatus}</div>
+                    <div class="card-subtext">Friday close: VIX &gt; 30 and S&amp;P RSI(14) &lt; 30, with S&amp;P YoY &gt; 0%</div>
+                    <div class="rows">
+                        <div class="row"><div class="row-main">${tick(C.fridayVix > 30)}Fri VIX close</div><div class="row-side num">${C.fridayVix !== null ? fmt(C.fridayVix) : '—'}</div></div>
+                        <div class="row"><div class="row-main">${tick(C.fridayRsi < 30)}Fri RSI(14) close</div><div class="row-side num">${C.fridayRsi !== null ? fmt(C.fridayRsi, 1) : '—'}</div></div>
+                        <div class="row"><div class="row-main">${tick(C.yoyOk)}S&amp;P YoY (recession filter)</div><div class="row-side num ${dir(C.yoy)}">${pct(C.yoy, 1)}</div>
+                            <div class="row-note" style="padding-left:16px">Uses today's YoY; Friday's isn't in the payload</div></div>
+                    </div>
+                    ${C.flag ? `<div class="alert"><strong>Check this:</strong> ${esc(C.flag)}</div>` : ''}
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Macro &amp; confirmation</div>
+                    <div class="rows" style="margin-top:4px">
+                        <div class="row">
+                            <div class="row-main">2Y yield headwind</div>
+                            <div class="row-side">${Y.headwind ? '<span class="pill bad">Active</span>' : '<span class="pill good">Clear</span>'}</div>
+                            <div class="row-note">${fmt(Y.nominal2yPct)}% nominal 2Y · <span class="${Y.threeMonthChangeBps > 0 ? 'down' : 'up'}">${Y.threeMonthChangeBps > 0 ? '+' : ''}${Y.threeMonthChangeBps} bps</span> over 3M (limit +25) · trend ${esc(Y.trend)}${Y.trend !== 'Falling' ? ' — watch for flip to Falling' : ''}</div>
+                        </div>
+                        <div class="row">
+                            <div class="row-main">Nasdaq NH−NL</div>
+                            <div class="row-side num ${dir(BR.nasdaqNhNlPriorClose)}">${BR.nasdaqNhNlPriorClose > 0 ? '+' : '−'}${Math.abs(BR.nasdaqNhNlPriorClose)}</div>
+                            <div class="row-note">${esc(BR.note)}</div>
+                        </div>
+                        <div class="row">
+                            <div class="row-main">BTC <span class="num">$${fmt(B.priceUsd, 0)}</span></div>
+                            <div class="row-side ${dir(B.dayChangePct)}">${pct(B.dayChangePct)}</div>
+                            <div class="row-note"><span class="${dir(B.gap100)}">${pct(B.gap100, 1)}</span> vs 100D · <span class="${dir(B.gap200)}">${pct(B.gap200, 1)}</span> vs 200D</div>
+                        </div>
+                    </div>
+                </div>
+                ${r.warnings.length ? `<div class="alert"><strong>Payload inconsistencies:</strong><br>${r.warnings.map(esc).join('<br>')}</div>` : ''}
+            `;
+            document.getElementById('regime').innerHTML = html;
+            return r;
+        }
+
+        async function loadRegime() {
+            try {
+                const res = await fetch('market-regime.json', { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const r = renderRegime(data);
+                document.getElementById('sp500').textContent = fmt(r.sp500.price, 0);
+                document.getElementById('sp500-change').innerHTML =
+                    `<span class="${dir(r.sp500.dayChangePct)}">${pct(r.sp500.dayChangePct)}</span> today · DD ${pct(r.sp500.drawdownPct)}`;
+            } catch (e) {
+                document.getElementById('regime-stamp').textContent =
+                    'Couldn’t load market-regime.json (' + e.message + '). Serve the page over http, not file://.';
+            }
+        }
+
         // Market data (placeholder; replace with real APIs)
         async function updateMarket() {
-            // S&P 500 — replace with AlphaVantage or FRED API
-            document.getElementById('sp500').textContent = '5,257';
-            document.getElementById('sp500-change').textContent = '+0.8% today';
-            
+            // S&P 500 comes from market-regime.json (see loadRegime)
+
             // 10-Year Treasury — replace with FRED API
             document.getElementById('treasury').textContent = '4.2%';
             document.getElementById('treasury-change').textContent = '+0.1% week';
@@ -468,12 +806,14 @@
         updateWorkout();
         updateWeather();
         updateMarket();
+        loadRegime();
         updateHeadlines();
-        
+
         // Auto-refresh every 5 minutes
         setInterval(() => {
             updateWeather();
             updateMarket();
+            loadRegime();
             updateHeadlines();
         }, 300000);
     </script>
