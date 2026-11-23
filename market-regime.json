@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "2.0",
+  "generatedAt": "2026-11-23T08:05:41-07:00",
+  "session": "Morning",
+  "rules": {
+    "threeHorsemen": "RISK-ON if SPY, QQQ, IWM all > 200D SMA; DEFENSIVE if all < 200D SMA; else MIXED.",
+    "washoutScore": {
+      "maxScore": 6,
+      "triggerThreshold": 4,
+      "criteria": [
+        "sp500Rsi14 < 30",
+        "sp500DrawdownPct <= -10 OR sp500Vs200dPct <= -10",
+        "vix >= 30",
+        "fiveDaySigma <= -2.5",
+        "vixCluster == true (>=3 of last 5 closes with VIX >= 30)",
+        "vixRealizedStabilizing == true (VIX >= 30 while 20D realized vol stabilizes)"
+      ]
+    },
+    "club3030": "Triggered on Friday close when VIX > 30 AND S&P 500 14D RSI < 30; filter by S&P YoY > 0% to exclude recessions.",
+    "real2yYieldHeadwind": "3-month change > +25 bps is an acute equity/BTC headwind; watch for direction to flip Falling."
+  },
+  "threeHorsemen": {
+    "spy": {
+      "price": 721.76,
+      "priorClose": 689.81,
+      "dayChangePct": 4.63,
+      "sma200": 732.76,
+      "vs200d": "Below",
+      "asOf": "2026-11-23T10:05:00-05:00",
+      "freshness": "live"
+    },
+    "qqq": {
+      "price": 649.67,
+      "priorClose": 608.45,
+      "dayChangePct": 6.77,
+      "sma200": 683.06,
+      "vs200d": "Below",
+      "asOf": "2026-11-23T10:05:00-05:00",
+      "freshness": "live"
+    },
+    "iwm": {
+      "price": 264.14,
+      "priorClose": 256.61,
+      "dayChangePct": 2.93,
+      "sma200": 279.57,
+      "vs200d": "Below",
+      "asOf": "2026-11-23T10:05:00-05:00",
+      "freshness": "live"
+    },
+    "regime": "DEFENSIVE (All Below)"
+  },
+  "washout": {
+    "sp500": {
+      "price": 7228.20,
+      "priorClose": 6910.39,
+      "dayChangePct": 4.60,
+      "drawdownPct": -7.56,
+      "vs200dPct": -1.61,
+      "yoyPct": 8.9,
+      "asOf": "2026-11-23T10:05:00-05:00",
+      "freshness": "live"
+    },
+    "sp500Rsi14": {
+      "value": 24.7,
+      "asOf": "2026-11-20T16:00:00-05:00",
+      "freshness": "priorClose",
+      "staleIntraday": true,
+      "intradayFuturesRsi14": {
+        "value": 54.72,
+        "asOf": "2026-11-23T01:26:00Z",
+        "freshness": "live"
+      }
+    },
+    "vix": {
+      "value": 28.99,
+      "priorClose": 35.89,
+      "dayChangePct": -19.23,
+      "asOf": "2026-11-23T09:00:00-06:00",
+      "freshness": "live"
+    },
+    "fiveDaySigma": {
+      "value": -0.62,
+      "asOf": "2026-11-23T10:05:00-05:00",
+      "freshness": "live"
+    },
+    "vixCluster": {
+      "active": false,
+      "daysAbove30Last5": 1,
+      "asOf": "2026-11-23T09:00:00-06:00",
+      "freshness": "live"
+    },
+    "vixRealizedStabilizing": {
+      "active": false,
+      "asOf": "2026-11-23T09:00:00-06:00",
+      "freshness": "live"
+    },
+    "liveScore": 0,
+    "scoreIncludingPriorCloseRsi": 1
+  },
+  "club3030": {
+    "triggered": false,
+    "isFridayClose": false,
+    "sp500YoyPositive": true
+  },
+  "macroAndConfirmation": {
+    "real2yYield": {
+      "nominal2yPct": 4.71,
+      "threeMonthChangeBps": 32,
+      "trend": "Rising",
+      "asOf": "2026-11-23",
+      "freshness": "live"
+    },
+    "breadth": {
+      "note": "Broad opening relief rally (SPY +4.63%, QQQ +6.77%, IWM +2.93%) off Friday Nasdaq NH-NL -532; no completed Zweig thrust yet",
+      "nasdaqNhNlPriorClose": -532,
+      "asOf": "2026-11-20",
+      "freshness": "priorClose"
+    },
+    "btc": {
+      "priceUsd": 63063.54,
+      "dayChangePct": 3.11,
+      "sma100": 73838.42,
+      "sma200": 72198.87,
+      "vs100d": "Below",
+      "vs200d": "Below",
+      "asOf": "2026-11-23T15:05:00Z",
+      "freshness": "live"
+    }
+  }
+}
