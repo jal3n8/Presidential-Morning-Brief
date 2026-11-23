@@ -1,0 +1,41 @@
+# WOI Market Extremes Radar - Apache / Hostinger settings
+# Static site only: no PHP, no server-side code, no admin endpoints.
+
+Options -Indexes
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Always use HTTPS
+  RewriteCond %{HTTPS} off
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  # Never serve dotfiles or source maps
+  RewriteRule (^|/)\.(?!well-known/) - [F]
+  RewriteRule \.map$ - [F]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  Header always set X-Robots-Tag "noindex, nofollow"
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+
+  # Data and the page must refresh after an update; hashed JS/CSS can be cached
+  <FilesMatch "\.(json|html)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# PASSWORD PROTECTION (private research use)
+# Set it up in hPanel -> Advanced -> Password Protect Directories.
+# hPanel adds AuthType/AuthUserFile lines to THIS file. When you upload a new
+# version, do not overwrite .htaccess, or re-apply protection afterwards.
+# See DEPLOYMENT.md, step 6.
+# ---------------------------------------------------------------------------

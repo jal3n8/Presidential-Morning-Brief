@@ -1,0 +1,42 @@
+{
+  "name": "woi-market-extremes-radar",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WOI Equity Market Extremes Radar - private market research terminal",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:python": "node scripts/py.mjs -m unittest discover -s pipeline/tests -t . -v",
+    "test:all": "npm run test && npm run test:python",
+    "data:update": "node scripts/py.mjs pipeline/fetch_data.py && node scripts/py.mjs pipeline/build_dataset.py",
+    "data:build": "node scripts/py.mjs pipeline/build_dataset.py",
+    "data:demo": "node scripts/py.mjs pipeline/make_demo.py"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "recharts": "2.15.4",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "22.15.30",
+    "@types/react": "18.3.23",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "6.2.1",
+    "autoprefixer": "10.4.21",
+    "jsdom": "26.1.0",
+    "postcss": "8.5.32",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.8.3",
+    "vite": "8.3.7",
+    "vitest": "5.0.5"
+  }
+}

@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html { -webkit-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+body {
+  background-color: #05070d;
+  /* faint static starfield */
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,.35), transparent 60%),
+    radial-gradient(1px 1px at 78% 9%, rgba(255,255,255,.25), transparent 60%),
+    radial-gradient(1px 1px at 33% 72%, rgba(255,255,255,.2), transparent 60%),
+    radial-gradient(1.5px 1.5px at 88% 61%, rgba(255,230,170,.3), transparent 60%),
+    radial-gradient(1px 1px at 52% 41%, rgba(255,255,255,.18), transparent 60%),
+    radial-gradient(1px 1px at 6% 88%, rgba(255,255,255,.22), transparent 60%);
+  background-size: 640px 640px;
+  color: #f4f1ea;
+  font-family: theme("fontFamily.sans");
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+section[id], [id="signup"], [id="join"] { scroll-margin-top: 5.5rem; }
+/* paints the phone status-bar strip above the sticky header (zero height on desktop browsers) */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 50; background: #05070d; }
+
+:focus-visible { outline: 2px solid #f5b930; outline-offset: 3px; border-radius: 6px; }
+
+/* Static globe used before the canvas draws, without JS canvas support, or if rendering fails. */
+.globe-fallback {
+  background:
+    radial-gradient(circle at 34% 30%, rgba(60,110,210,.55), rgba(14,31,69,.55) 45%, rgba(5,9,20,.85) 72%),
+    radial-gradient(circle at 50% 50%, transparent 60%, rgba(70,120,220,.25) 71%, transparent 74%);
+  box-shadow: 0 0 90px 10px rgba(70,120,220,.18), inset 0 0 60px rgba(150,180,255,.12);
+}
+.globe-fallback::after {
+  content: "";
+  position: absolute; inset: 0; border-radius: 9999px;
+  background:
+    radial-gradient(3px 3px at 22% 38%, rgba(255,215,114,.9), transparent 70%),
+    radial-gradient(3px 3px at 70% 34%, rgba(255,215,114,.8), transparent 70%),
+    radial-gradient(3px 3px at 62% 58%, rgba(255,215,114,.8), transparent 70%),
+    radial-gradient(2px 2px at 40% 66%, rgba(255,215,114,.6), transparent 70%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise .9s cubic-bezier(.2,.7,.2,1) both; }
+  .rise-2 { animation-delay: .12s; }
+  .rise-3 { animation-delay: .24s; }
+  .globe-in { animation: globein 1.6s ease-out both; }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes globein { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
