@@ -1,0 +1,44 @@
+{
+  "name": "dubnationglobal-newsletter",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "DubNationGlobal newsletter landing page",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p . && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@fontsource/barlow-condensed": "5.3.0",
+    "@fontsource/dm-sans": "5.3.0",
+    "d3-geo": "3.1.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "topojson-client": "3.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/d3-geo": "3.1.0",
+    "@types/geojson": "7946.0.16",
+    "@types/node": "22.15.30",
+    "@types/react": "18.3.23",
+    "@types/react-dom": "18.3.7",
+    "@types/topojson-client": "3.1.5",
+    "@vitejs/plugin-react": "6.2.1",
+    "autoprefixer": "10.4.21",
+    "jsdom": "26.1.0",
+    "postcss": "8.5.32",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.8.3",
+    "vite": "8.3.7",
+    "vitest": "5.0.5",
+    "world-atlas": "2.0.2"
+  }
+}
