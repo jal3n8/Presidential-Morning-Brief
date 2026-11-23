@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+# Downloaded vendor data is licensed for personal use: never commit it to a public repo
+data/raw/
+public/data/verified/
+__pycache__/
+*.pyc
+.DS_Store
+*.tsbuildinfo

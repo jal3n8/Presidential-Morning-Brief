@@ -1,0 +1,12 @@
+{
+  "_comment": "Symbols downloaded by `npm run data:update`. To add a watchlist symbol permanently, add a line here and run the command again. role: core_index | core_vol | watchlist. assetClass: index | volatility_index | etf | stock.",
+  "symbols": [
+    { "symbol": "^GSPC", "name": "S&P 500 Index", "role": "core_index", "assetClass": "index", "fredCrossCheck": "SP500" },
+    { "symbol": "^VIX", "name": "Cboe Volatility Index (VIX)", "role": "core_vol", "assetClass": "volatility_index", "fredCrossCheck": "VIXCLS" },
+    { "symbol": "SPY", "name": "SPDR S&P 500 ETF Trust", "role": "watchlist", "assetClass": "etf" },
+    { "symbol": "QQQ", "name": "Invesco QQQ Trust", "role": "watchlist", "assetClass": "etf" },
+    { "symbol": "NVDA", "name": "NVIDIA Corporation", "role": "watchlist", "assetClass": "stock" },
+    { "symbol": "TSLA", "name": "Tesla, Inc.", "role": "watchlist", "assetClass": "stock" },
+    { "symbol": "GOOGL", "name": "Alphabet Inc. Class A", "role": "watchlist", "assetClass": "stock" }
+  ]
+}
